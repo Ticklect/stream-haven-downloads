@@ -10,11 +10,27 @@ const Index = () => {
   const { toast } = useToast();
   const { sources, content, isLoading } = useSourceContent();
 
-  const handleDownload = (title: string, type: string) => {
-    toast({
-      title: "Download Started",
-      description: `${title} is now downloading in HD quality`,
-    });
+  const handleDownload = (title: string, type: string, downloadUrl?: string) => {
+    if (downloadUrl) {
+      // Create a temporary link to trigger download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${title}.${type === 'movie' ? 'mp4' : 'mkv'}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Download Started",
+        description: `${title} is now downloading in HD quality`,
+      });
+    } else {
+      toast({
+        title: "Download Unavailable",
+        description: "No download link available for this content",
+        variant: "destructive"
+      });
+    }
   };
 
   // Filter content by type

@@ -9,12 +9,13 @@ interface Content {
   type: string;
   image: string;
   description: string;
+  downloadUrl?: string;
 }
 
 interface ContentSectionProps {
   title: string;
   content: Content[];
-  onDownload: (title: string, type: string) => void;
+  onDownload: (title: string, type: string, downloadUrl?: string) => void;
   showViewAll?: boolean;
 }
 
@@ -52,7 +53,7 @@ export const ContentSection = ({ title, content, onDownload, showViewAll }: Cont
                       size="sm" 
                       variant="outline" 
                       className="border-white text-white hover:bg-white hover:text-black"
-                      onClick={() => onDownload(item.title, item.type)}
+                      onClick={() => onDownload(item.title, item.type, item.downloadUrl)}
                     >
                       <Download className="h-4 w-4" />
                     </Button>

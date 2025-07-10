@@ -16,16 +16,24 @@ export const AddSourceForm = ({ onAdd, onCancel }: AddSourceFormProps) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim() && url.trim()) {
-      onAdd({ name: name.trim(), url: url.trim(), isActive });
-      setName("");
-      setUrl("");
-      setIsActive(true);
+      try {
+        // Validate URL format
+        new URL(url.trim());
+        onAdd({ name: name.trim(), url: url.trim(), isActive });
+        setName("");
+        setUrl("");
+        setIsActive(true);
+      } catch (error) {
+        alert('Please enter a valid URL (e.g., https://example.com)');
+      }
     }
   };
 
   const popularSources = [
-    { name: "PStream", url: "https://pstream.org/" },
-    { name: "Custom Source", url: "https://example.com/api" },
+    { name: "PStream", url: "https://pstream.org" },
+    { name: "StreamWish", url: "https://streamwish.to" },
+    { name: "FileLions", url: "https://filelions.com" },
+    { name: "Custom API", url: "https://your-api.com" },
   ];
 
   return (

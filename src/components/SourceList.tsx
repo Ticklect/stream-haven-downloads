@@ -67,7 +67,11 @@ export const SourceList = ({ sources, onToggle, onRemove }: SourceListProps) => 
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onRemove(source.id)}
+                onClick={() => {
+                  if (confirm(`Remove ${source.name}? This will also remove all content from this source.`)) {
+                    onRemove(source.id);
+                  }
+                }}
                 className="text-gray-400 hover:text-red-500"
               >
                 <Trash2 className="h-4 w-4" />
