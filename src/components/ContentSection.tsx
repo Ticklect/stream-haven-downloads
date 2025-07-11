@@ -1,6 +1,7 @@
-
+import React, { useState } from 'react';
 import { Download, Play, Info, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MediaPlayer } from "@/components/MediaPlayer";
 
 interface Content {
   id: number;
@@ -20,6 +21,8 @@ interface ContentSectionProps {
 }
 
 export const ContentSection = ({ title, content, onDownload, showViewAll }: ContentSectionProps) => {
+  const [selectedContent, setSelectedContent] = useState<Content | null>(null);
+
   return (
     <section className="py-8">
       <div className="container mx-auto px-4">
@@ -46,7 +49,11 @@ export const ContentSection = ({ title, content, onDownload, showViewAll }: Cont
                 {/* Overlay */}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                   <div className="flex space-x-2">
-                    <Button size="sm" className="bg-[#E50914] hover:bg-[#B20710]">
+                    <Button 
+                      size="sm" 
+                      className="bg-[#E50914] hover:bg-[#B20710]"
+                      onClick={() => setSelectedContent(item)}
+                    >
                       <Play className="h-4 w-4" />
                     </Button>
                     <Button 
@@ -86,6 +93,18 @@ export const ContentSection = ({ title, content, onDownload, showViewAll }: Cont
           ))}
         </div>
       </div>
+
+      {/* Media Player */}
+      {selectedContent && (
+        <MediaPlayer
+          isOpen={!!selectedContent}
+          onClose={() => setSelectedContent(null)}
+          title={selectedContent.title}
+          url={selectedContent.downloadUrl || ''}
+          downloadUrl={selectedContent.downloadUrl}
+          onDownload={onDownload}
+        />
+      )}
     </section>
   );
 };

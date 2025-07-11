@@ -11,7 +11,7 @@ const Index = () => {
   const { toast } = useToast();
   const { sources, content, isLoading } = useSourceContent();
 
-  const handleDownload = (title: string, type: string, downloadUrl?: string) => {
+  const handleDownload = async (title: string, type: string, downloadUrl?: string) => {
     if (!downloadUrl) {
       toast({
         title: "Download Unavailable",
@@ -34,7 +34,7 @@ const Index = () => {
 
     // Show confirmation dialog for external downloads
     const confirmDownload = window.confirm(
-      `Are you sure you want to download "${title}" from an external source?`
+      `Are you sure you want to download "${title}"?`
     );
     
     if (!confirmDownload) {
@@ -42,21 +42,43 @@ const Index = () => {
     }
 
     try {
-      // Create a secure temporary link to trigger download
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = createSecureFilename(title, type);
-      link.rel = 'noopener noreferrer';
-      link.target = '_blank';
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast({
-        title: "Download Started",
-        description: `${title} is now downloading in HD quality`,
-      });
+      // Check if running in Electron
+      if (window.electronAPI) {
+        // Use Electron's secure download API
+        const result = await window.electronAPI.downloadFile(
+          downloadUrl, 
+          createSecureFilename(title, type)
+        );
+        
+        if (result.success) {
+          toast({
+            title: "Download Initiated",
+            description: result.message,
+          });
+        } else {
+          toast({
+            title: "Download Failed",
+            description: result.message,
+            variant: "destructive"
+          });
+        }
+      } else {
+        // Fallback for web version
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = createSecureFilename(title, type);
+        link.rel = 'noopener noreferrer';
+        link.target = '_blank';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast({
+          title: "Download Started",
+          description: `${title} download initiated`,
+        });
+      }
     } catch (error) {
       console.error('Download failed:', error);
       toast({

@@ -54,10 +54,10 @@ export const AddSourceForm = ({ onAdd, onCancel }: AddSourceFormProps) => {
   };
 
   const popularSources = [
-    { name: "PStream", url: "https://pstream.org" },
-    { name: "StreamWish", url: "https://streamwish.to" },
-    { name: "FileLions", url: "https://filelions.com" },
-    { name: "Custom API", url: "https://your-api.com" },
+    { name: "Demo Movies Hub", url: "https://demo-movies.example.com" },
+    { name: "Sample Content", url: "https://sample-content.demo.org" },
+    { name: "Test Streaming", url: "https://test-streaming.local" },
+    { name: "Media Archive", url: "https://media-archive.demo.net" },
   ];
 
   return (

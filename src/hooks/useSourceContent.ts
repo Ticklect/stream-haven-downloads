@@ -80,65 +80,85 @@ export const useSourceContent = () => {
         const allContent: Content[] = [];
         
         activeSources.forEach((source, sourceIndex) => {
-          // Generate movies
+          // Generate movies with working demo streams
           const movies = [
             {
               id: sourceIndex * 1000 + 1,
-              title: "Avatar: The Way of Water",
-              year: 2022,
+              title: "Big Buck Bunny",
+              year: 2008,
               type: "movie" as const,
               image: "https://images.unsplash.com/photo-1489599117333-089b9c5a56a4?w=400&h=600&fit=crop",
-              description: "Set more than a decade after the events of the first film, Avatar: The Way of Water begins to tell the story of the Sully family.",
+              description: "A large and lovable rabbit deals with three tiny bullies, led by a flying squirrel, who are determined to squelch his happiness.",
               source: source.name,
-              downloadUrl: `${source.url}/download/avatar-way-water`,
+              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
               isLatest: sourceIndex === 0
             },
             {
               id: sourceIndex * 1000 + 2,
-              title: "Top Gun: Maverick",
-              year: 2022,
+              title: "Elephant Dream",
+              year: 2006,
               type: "movie" as const,
               image: "https://images.unsplash.com/photo-1489599117333-089b9c5a56a4?w=400&h=600&fit=crop",
-              description: "After thirty years, Maverick is still pushing the envelope as a top naval aviator.",
+              description: "Friends Proog and Emo journey inside the folds of a seemingly infinite Machine, exploring the dark and twisted complex of wires, gears, and cogs.",
               source: source.name,
-              downloadUrl: `${source.url}/download/top-gun-maverick`,
+              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
               isEditorPick: sourceIndex === 0
             },
             {
               id: sourceIndex * 1000 + 3,
-              title: "Spider-Man: No Way Home",
-              year: 2021,
+              title: "Sintel",
+              year: 2010,
               type: "movie" as const,
               image: "https://images.unsplash.com/photo-1489599117333-089b9c5a56a4?w=400&h=600&fit=crop",
-              description: "Spider-Man's identity is revealed to the entire world.",
+              description: "A lonely young woman, Sintel, helps and befriends a dragon, whom she calls Scales.",
               source: source.name,
-              downloadUrl: `${source.url}/download/spiderman-no-way-home`
+              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
+            },
+            {
+              id: sourceIndex * 1000 + 4,
+              title: "Tears of Steel",
+              year: 2012,
+              type: "movie" as const,
+              image: "https://images.unsplash.com/photo-1489599117333-089b9c5a56a4?w=400&h=600&fit=crop",
+              description: "In an apocalyptic future, a group of soldiers and scientists takes refuge in Amsterdam to try to stop an army of robots.",
+              source: source.name,
+              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
             }
           ];
 
-          // Generate TV shows
+          // Generate TV shows with working demo streams
           const tvShows = [
             {
               id: sourceIndex * 1000 + 101,
-              title: "The Last of Us",
+              title: "Sample Series Episode 1",
               year: 2023,
               type: "tv" as const,
               image: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400&h=600&fit=crop",
-              description: "Joel and Ellie, a pair connected through the harshness of the world they live in.",
+              description: "A demonstration episode showcasing video streaming capabilities in the desktop application.",
               source: source.name,
-              downloadUrl: `${source.url}/download/last-of-us-s01`,
+              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
               isLatest: sourceIndex === 0
             },
             {
               id: sourceIndex * 1000 + 102,
-              title: "Wednesday",
+              title: "Tech Demo Series",
               year: 2022,
               type: "tv" as const,
               image: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400&h=600&fit=crop",
-              description: "Wednesday Addams is sent to Nevermore Academy.",
+              description: "Technical demonstration of media streaming and download functionality.",
               source: source.name,
-              downloadUrl: `${source.url}/download/wednesday-s01`,
+              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4",
               isEditorPick: sourceIndex === 0
+            },
+            {
+              id: sourceIndex * 1000 + 103,
+              title: "Demo Content Hub",
+              year: 2021,
+              type: "tv" as const,
+              image: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=400&h=600&fit=crop",
+              description: "Sample content to showcase the media player and download capabilities.",
+              source: source.name,
+              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4"
             }
           ];
 
