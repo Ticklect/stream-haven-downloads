@@ -1,7 +1,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { X, Plus } from "lucide-react";
+import { X, Plus, AlertTriangle } from "lucide-react";
+import { validateUrl, validateSourceName } from "@/utils/security";
 
 interface AddSourceFormProps {
   onAdd: (sourceData: { name: string; url: string; isActive: boolean }) => void;
@@ -12,20 +13,43 @@ export const AddSourceForm = ({ onAdd, onCancel }: AddSourceFormProps) => {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [errors, setErrors] = useState<{ name?: string; url?: string }>({});
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim() && url.trim()) {
-      try {
-        // Validate URL format
-        new URL(url.trim());
-        onAdd({ name: name.trim(), url: url.trim(), isActive });
-        setName("");
-        setUrl("");
-        setIsActive(true);
-      } catch (error) {
-        alert('Please enter a valid URL (e.g., https://example.com)');
-      }
+    setErrors({});
+
+    // Validate inputs with security checks
+    const nameValidation = validateSourceName(name);
+    const urlValidation = validateUrl(url);
+
+    const newErrors: { name?: string; url?: string } = {};
+
+    if (!nameValidation.isValid) {
+      newErrors.name = nameValidation.error;
+    }
+
+    if (!urlValidation.isValid) {
+      newErrors.url = urlValidation.error;
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    try {
+      onAdd({ 
+        name: nameValidation.sanitizedName!, 
+        url: urlValidation.sanitizedUrl!, 
+        isActive 
+      });
+      setName("");
+      setUrl("");
+      setIsActive(true);
+      setErrors({});
+    } catch (error) {
+      setErrors({ url: 'Failed to add source. Please try again.' });
     }
   };
 
@@ -61,9 +85,18 @@ export const AddSourceForm = ({ onAdd, onCancel }: AddSourceFormProps) => {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., PStream"
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E50914] focus:border-transparent"
+            maxLength={100}
+            className={`w-full px-3 py-2 bg-gray-800 border rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E50914] focus:border-transparent ${
+              errors.name ? 'border-red-500' : 'border-gray-700'
+            }`}
             required
           />
+          {errors.name && (
+            <div className="flex items-center mt-1 text-sm text-red-400">
+              <AlertTriangle className="h-4 w-4 mr-1" />
+              {errors.name}
+            </div>
+          )}
         </div>
 
         <div>
@@ -75,10 +108,19 @@ export const AddSourceForm = ({ onAdd, onCancel }: AddSourceFormProps) => {
             id="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://pstream.org/"
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E50914] focus:border-transparent"
+            placeholder="https://example.com/"
+            maxLength={2048}
+            className={`w-full px-3 py-2 bg-gray-800 border rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E50914] focus:border-transparent ${
+              errors.url ? 'border-red-500' : 'border-gray-700'
+            }`}
             required
           />
+          {errors.url && (
+            <div className="flex items-center mt-1 text-sm text-red-400">
+              <AlertTriangle className="h-4 w-4 mr-1" />
+              {errors.url}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center">

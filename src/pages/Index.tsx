@@ -5,17 +5,50 @@ import { ContentSection } from "@/components/ContentSection";
 import { EmptyState } from "@/components/EmptyState";
 import { useToast } from "@/hooks/use-toast";
 import { useSourceContent } from "@/hooks/useSourceContent";
+import { validateDownloadUrl, createSecureFilename } from "@/utils/security";
 
 const Index = () => {
   const { toast } = useToast();
   const { sources, content, isLoading } = useSourceContent();
 
   const handleDownload = (title: string, type: string, downloadUrl?: string) => {
-    if (downloadUrl) {
-      // Create a temporary link to trigger download
+    if (!downloadUrl) {
+      toast({
+        title: "Download Unavailable",
+        description: "No download link available for this content",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate download URL for security
+    const urlValidation = validateDownloadUrl(downloadUrl);
+    if (!urlValidation.isValid) {
+      toast({
+        title: "Security Error",
+        description: urlValidation.error || "Invalid download URL",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Show confirmation dialog for external downloads
+    const confirmDownload = window.confirm(
+      `Are you sure you want to download "${title}" from an external source?`
+    );
+    
+    if (!confirmDownload) {
+      return;
+    }
+
+    try {
+      // Create a secure temporary link to trigger download
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `${title}.${type === 'movie' ? 'mp4' : 'mkv'}`;
+      link.download = createSecureFilename(title, type);
+      link.rel = 'noopener noreferrer';
+      link.target = '_blank';
+      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -24,10 +57,11 @@ const Index = () => {
         title: "Download Started",
         description: `${title} is now downloading in HD quality`,
       });
-    } else {
+    } catch (error) {
+      console.error('Download failed:', error);
       toast({
-        title: "Download Unavailable",
-        description: "No download link available for this content",
+        title: "Download Failed",
+        description: "Unable to start download. Please try again.",
         variant: "destructive"
       });
     }

@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { validateUrl, validateSourceName, safeJsonParse } from '@/utils/security';
 
 interface Content {
   id: number;
@@ -27,16 +28,35 @@ export const useSourceContent = () => {
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load sources from localStorage
+  // Load sources from localStorage with security validation
   useEffect(() => {
     const savedSources = localStorage.getItem('streamhaven_sources');
     if (savedSources) {
       try {
-        const parsed = JSON.parse(savedSources);
-        setSources(parsed.map((source: any) => ({
-          ...source,
-          addedAt: new Date(source.addedAt)
-        })));
+        const parsed = safeJsonParse(savedSources, []);
+        
+        // Validate each source for security
+        const validSources = parsed
+          .filter((source: any) => {
+            if (!source || typeof source !== 'object') return false;
+            if (!source.id || !source.name || !source.url) return false;
+            
+            const urlValidation = validateUrl(source.url);
+            const nameValidation = validateSourceName(source.name);
+            
+            return urlValidation.isValid && nameValidation.isValid;
+          })
+          .map((source: any) => ({
+            ...source,
+            addedAt: new Date(source.addedAt || Date.now())
+          }));
+        
+        setSources(validSources);
+        
+        // Clean up localStorage if we removed invalid sources
+        if (validSources.length !== parsed.length) {
+          localStorage.setItem('streamhaven_sources', JSON.stringify(validSources));
+        }
       } catch (error) {
         console.error('Failed to parse saved sources:', error);
         localStorage.removeItem('streamhaven_sources');
@@ -138,22 +158,35 @@ export const useSourceContent = () => {
   }, [sources]);
 
   const addSource = (sourceData: Omit<Source, 'id' | 'addedAt'>) => {
-    // Validate URL format
-    try {
-      new URL(sourceData.url);
-    } catch (error) {
-      throw new Error('Invalid URL format');
+    // Validate URL and name with security checks
+    const urlValidation = validateUrl(sourceData.url);
+    const nameValidation = validateSourceName(sourceData.name);
+    
+    if (!urlValidation.isValid) {
+      throw new Error(urlValidation.error || 'Invalid URL');
+    }
+    
+    if (!nameValidation.isValid) {
+      throw new Error(nameValidation.error || 'Invalid source name');
     }
 
     const newSource: Source = {
       ...sourceData,
+      name: nameValidation.sanitizedName!,
+      url: urlValidation.sanitizedUrl!,
       id: Date.now().toString(),
       addedAt: new Date()
     };
     
     const updatedSources = [...sources, newSource];
     setSources(updatedSources);
-    localStorage.setItem('streamhaven_sources', JSON.stringify(updatedSources));
+    
+    try {
+      localStorage.setItem('streamhaven_sources', JSON.stringify(updatedSources));
+    } catch (error) {
+      console.error('Failed to save sources to localStorage:', error);
+      throw new Error('Failed to save source');
+    }
   };
 
   const removeSource = (sourceId: string) => {
