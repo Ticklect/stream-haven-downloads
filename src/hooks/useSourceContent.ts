@@ -67,13 +67,17 @@ export const useSourceContent = () => {
   // Fetch content when sources change
   useEffect(() => {
     const fetchContentFromSources = async () => {
+      console.log('fetchContentFromSources called, sources:', sources);
       const activeSources = sources.filter(source => source.isActive);
+      console.log('Active sources:', activeSources);
       
       if (activeSources.length === 0) {
+        console.log('No active sources, setting empty content');
         setContent([]);
         return;
       }
 
+      console.log('Starting to generate content for active sources');
       setIsLoading(true);
       try {
         // Generate realistic content for each active source
@@ -165,6 +169,7 @@ export const useSourceContent = () => {
           allContent.push(...movies, ...tvShows);
         });
         
+        console.log('Generated content:', allContent);
         setContent(allContent);
       } catch (error) {
         console.error('Failed to fetch content from sources:', error);
