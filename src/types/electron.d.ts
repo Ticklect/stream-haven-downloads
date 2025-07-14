@@ -1,6 +1,6 @@
 // Electron API type definitions
 export interface ElectronAPI {
-  downloadFile: (url: string, filename: string) => Promise<{
+  downloadFile: (options: { url: string; filename: string }) => Promise<{
     success: boolean;
     message: string;
     path?: string;

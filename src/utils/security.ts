@@ -128,9 +128,10 @@ export const createSecureFilename = (title: string, type: string): string => {
   // Remove potentially dangerous characters and limit length
   const cleanTitle = title
     .replace(/[^a-zA-Z0-9\s\-_.]/g, '')
+    .replace(/\s+/g, '_')
     .trim()
     .substring(0, 50);
   
-  const extension = type === 'movie' ? 'mp4' : 'mkv';
+  const extension = 'mp4'; // Use mp4 for all video content
   return `${cleanTitle}.${extension}`;
 };

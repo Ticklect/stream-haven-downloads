@@ -98,13 +98,42 @@ ipcMain.handle('download-file', async (event, { url, filename }) => {
     });
 
     if (!result.canceled && result.filePath) {
-      // In a real app, you would implement the actual download logic here
-      // For security, we'll just show a message
-      return {
-        success: true,
-        message: 'Download initiated. This is a demo - actual downloads would be implemented with proper security.',
-        path: result.filePath
-      };
+      // Implement actual download with progress tracking
+      const https = require('https');
+      const http = require('http');
+      
+      return new Promise((resolve) => {
+        const file = fs.createWriteStream(result.filePath);
+        const protocol = url.startsWith('https:') ? https : http;
+        
+        protocol.get(url, (response) => {
+          const totalSize = parseInt(response.headers['content-length'], 10);
+          let downloadedSize = 0;
+          
+          response.on('data', (chunk) => {
+            downloadedSize += chunk.length;
+            const progress = (downloadedSize / totalSize * 100).toFixed(2);
+            // You could emit progress events here for UI updates
+          });
+          
+          response.pipe(file);
+          
+          file.on('finish', () => {
+            file.close();
+            resolve({
+              success: true,
+              message: 'Download completed successfully',
+              path: result.filePath
+            });
+          });
+        }).on('error', (err) => {
+          fs.unlink(result.filePath, () => {}); // Delete partial file
+          resolve({
+            success: false,
+            message: `Download failed: ${err.message}`
+          });
+        });
+      });
     }
 
     return { success: false, message: 'Download cancelled' };

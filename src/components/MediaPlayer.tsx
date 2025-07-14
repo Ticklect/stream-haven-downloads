@@ -35,8 +35,8 @@ export const MediaPlayer = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Demo video URL for testing (replace with actual stream URL)
-  const demoVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+  // Use the actual URL passed from the content, fallback to demo if needed
+  const videoUrl = url || "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
   useEffect(() => {
     const video = videoRef.current;
@@ -161,7 +161,7 @@ export const MediaPlayer = ({
           <video
             ref={videoRef}
             className="w-full h-full object-contain"
-            src={demoVideoUrl} // Using demo video for safety
+            src={videoUrl}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
             onError={() => setError("Media failed to load")}

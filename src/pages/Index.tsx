@@ -45,10 +45,10 @@ const Index = () => {
       // Check if running in Electron
       if (window.electronAPI) {
         // Use Electron's secure download API
-        const result = await window.electronAPI.downloadFile(
-          downloadUrl, 
-          createSecureFilename(title, type)
-        );
+        const result = await window.electronAPI.downloadFile({
+          url: downloadUrl, 
+          filename: createSecureFilename(title, type)
+        });
         
         if (result.success) {
           toast({
