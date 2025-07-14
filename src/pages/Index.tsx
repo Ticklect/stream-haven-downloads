@@ -73,6 +73,11 @@ const Index = () => {
   const movies = content.filter(item => item.type === "movie");
   const tvShows = content.filter(item => item.type === "tv");
 
+  // Debug logging
+  console.log('Sources:', sources);
+  console.log('Content:', content);
+  console.log('Is Loading:', isLoading);
+
   return (
     <div className="min-h-screen bg-black text-white">
       <Header />
