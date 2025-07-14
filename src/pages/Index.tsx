@@ -42,43 +42,21 @@ const Index = () => {
     }
 
     try {
-      // Check if running in Electron
-      if (window.electronAPI) {
-        // Use Electron's secure download API
-        const result = await window.electronAPI.downloadFile({
-          url: downloadUrl, 
-          filename: createSecureFilename(title, type)
-        });
-        
-        if (result.success) {
-          toast({
-            title: "Download Initiated",
-            description: result.message,
-          });
-        } else {
-          toast({
-            title: "Download Failed",
-            description: result.message,
-            variant: "destructive"
-          });
-        }
-      } else {
-        // Fallback for web version
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = createSecureFilename(title, type);
-        link.rel = 'noopener noreferrer';
-        link.target = '_blank';
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast({
-          title: "Download Started",
-          description: `${title} download initiated`,
-        });
-      }
+      // Direct download for web version
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = createSecureFilename(title, type);
+      link.rel = 'noopener noreferrer';
+      link.target = '_blank';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Download Started",
+        description: `${title} download initiated`,
+      });
     } catch (error) {
       console.error('Download failed:', error);
       toast({
