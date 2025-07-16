@@ -22,6 +22,12 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Always use mock for web development, Tauri will use real API at runtime
+      '@tauri-apps/api': path.resolve(__dirname, 'src/empty-tauri-api.js'),
     },
+  },
+  define: {
+    // Ensure require is available for the storage utility
+    global: 'globalThis',
   },
 }));

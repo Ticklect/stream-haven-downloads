@@ -21,7 +21,7 @@ export const sanitizeHtml = (content: string): string => {
  * Sanitizes plain text input
  */
 export const sanitizeText = (text: string): string => {
-  return text.replace(/[<>\"'&]/g, (char) => {
+  return text.replace(/[<>"'&]/g, (char) => {
     const entities: { [key: string]: string } = {
       '<': '&lt;',
       '>': '&gt;',
@@ -71,7 +71,7 @@ export const validateSourceName = (name: string): { isValid: boolean; sanitizedN
   }
 
   // Check for potentially dangerous characters
-  if (/[<>\"'&]/.test(trimmedName)) {
+  if (/[<>"'&]/.test(trimmedName)) {
     return { isValid: false, error: 'Source name contains invalid characters' };
   }
 

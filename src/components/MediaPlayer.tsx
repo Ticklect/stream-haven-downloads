@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Play, Pause, Volume2, VolumeX, Maximize, Download, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import Hls from 'hls.js';
 
 interface MediaPlayerProps {
   isOpen: boolean;
@@ -42,6 +43,32 @@ export const MediaPlayer = ({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    let hls: Hls | null = null;
+
+    // HLS support
+    if (videoUrl.endsWith('.m3u8')) {
+      if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(videoUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          setIsLoading(false);
+          setError(null);
+        });
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          setError('Failed to load HLS stream.');
+          setIsLoading(false);
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = videoUrl;
+      } else {
+        setError('HLS is not supported in this browser.');
+        setIsLoading(false);
+      }
+    } else {
+      video.src = videoUrl;
+    }
 
     console.log('Setting up video event listeners for:', videoUrl);
 
@@ -117,6 +144,9 @@ export const MediaPlayer = ({
     video.src = videoUrl;
 
     return () => {
+      if (hls) {
+        hls.destroy();
+      }
       video.removeEventListener('timeupdate', updateTime);
       video.removeEventListener('loadedmetadata', updateDuration);
       video.removeEventListener('loadstart', handleLoadStart);

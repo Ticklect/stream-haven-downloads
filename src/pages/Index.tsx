@@ -112,17 +112,6 @@ const Index = () => {
       <main className="pb-16">
         {sources.length === 0 ? (
           <EmptyState />
-        ) : isLoading ? (
-          <div className="container mx-auto px-4 py-16 text-center">
-            <div className="text-white text-lg">Loading content from sources...</div>
-          </div>
-        ) : content.length === 0 ? (
-          <div className="container mx-auto px-4 py-16 text-center">
-            <div className="text-gray-400 text-lg">No content available from active sources</div>
-            <div className="text-gray-500 text-sm mt-2">
-              Try adding more sources or check if your current sources are active
-            </div>
-          </div>
         ) : (
           <>
             {latestReleases.length > 0 && (
@@ -130,6 +119,7 @@ const Index = () => {
                 title="Latest Releases"
                 content={latestReleases}
                 onDownload={handleDownload}
+                isLoading={isLoading}
               />
             )}
             
@@ -138,6 +128,7 @@ const Index = () => {
                 title="Editor Picks"
                 content={editorPicks}
                 onDownload={handleDownload}
+                isLoading={isLoading}
               />
             )}
             
@@ -147,6 +138,7 @@ const Index = () => {
                 content={movies}
                 onDownload={handleDownload}
                 showViewAll
+                isLoading={isLoading}
               />
             )}
             
@@ -156,7 +148,18 @@ const Index = () => {
                 content={tvShows}
                 onDownload={handleDownload}
                 showViewAll
+                isLoading={isLoading}
               />
+            )}
+
+            {/* Show loading state when no content is available yet */}
+            {!isLoading && content.length === 0 && sources.length > 0 && (
+              <div className="container mx-auto px-4 py-16 text-center">
+                <div className="text-gray-400 text-lg">No content available from active sources</div>
+                <div className="text-gray-500 text-sm mt-2">
+                  Try adding more sources or check if your current sources are active
+                </div>
+              </div>
             )}
           </>
         )}

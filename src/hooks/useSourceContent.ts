@@ -1,6 +1,7 @@
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { validateUrl, validateSourceName, safeJsonParse } from '@/utils/security';
+import { get, set } from '@/utils/storage';
 
 interface Content {
   id: number;
@@ -29,46 +30,60 @@ export const useSourceContent = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load sources from localStorage with security validation
+
+
+  // Async storage get/set that works in both Tauri and web
+  async function getStoredSources() {
+    return await get('streamhaven_sources');
+  }
+
+  async function setStoredSources(sources) {
+    await set('streamhaven_sources', JSON.stringify(sources));
+  }
+
+  // Load sources from Tauri storage with security validation
   useEffect(() => {
-    console.log('Loading sources from localStorage...');
-    const savedSources = localStorage.getItem('streamhaven_sources');
-    if (savedSources) {
+    (async () => {
+      console.log('Loading sources from Tauri storage...');
+      let savedSources: string | null = null;
       try {
-        const parsed = safeJsonParse(savedSources, []);
-        console.log('Parsed saved sources:', parsed);
-        
-        // Validate each source for security
-        const validSources = parsed
-          .filter((source: any) => {
-            if (!source || typeof source !== 'object') return false;
-            if (!source.id || !source.name || !source.url) return false;
-            
-            const urlValidation = validateUrl(source.url);
-            const nameValidation = validateSourceName(source.name);
-            
-            return urlValidation.isValid && nameValidation.isValid;
-          })
-          .map((source: any) => ({
-            ...source,
-            addedAt: new Date(source.addedAt || Date.now())
-          }));
-        
-        console.log('Valid sources after validation:', validSources);
-        setSources(validSources);
-        
-        // Clean up localStorage if we removed invalid sources
-        if (validSources.length !== parsed.length) {
-          localStorage.setItem('streamhaven_sources', JSON.stringify(validSources));
-        }
-      } catch (error) {
-        console.error('Failed to parse saved sources:', error);
-        setError('Failed to load saved sources');
-        localStorage.removeItem('streamhaven_sources');
+        savedSources = await getStoredSources();
+      } catch (e) {
+        console.error('Failed to get sources from Tauri storage:', e);
       }
-    } else {
-      console.log('No saved sources found');
-    }
+      if (savedSources) {
+        try {
+          const parsed = safeJsonParse(savedSources, []);
+          console.log('Parsed saved sources:', parsed);
+          // Validate each source for security
+          const validSources = parsed
+            .filter((source: unknown): source is Source => {
+              if (typeof source !== 'object' || source === null) return false;
+              const s = source as Partial<Source>;
+              if (!s.id || !s.name || !s.url) return false;
+              const urlValidation = validateUrl(s.url);
+              const nameValidation = validateSourceName(s.name);
+              return urlValidation.isValid && nameValidation.isValid;
+            })
+            .map((source) => ({
+              ...source,
+              addedAt: typeof source.addedAt === 'string' ? new Date(source.addedAt) : (source.addedAt instanceof Date ? source.addedAt : new Date())
+            }));
+          console.log('Valid sources after validation:', validSources);
+          setSources(validSources);
+          // Clean up storage if we removed invalid sources
+          if (validSources.length !== parsed.length) {
+            await setStoredSources(validSources);
+          }
+        } catch (error) {
+          console.error('Failed to parse saved sources:', error);
+          setError('Failed to load saved sources');
+          await setStoredSources('');
+        }
+      } else {
+        console.log('No saved sources found');
+      }
+    })();
   }, []);
 
   // Generate content when sources change
@@ -91,60 +106,47 @@ export const useSourceContent = () => {
       setIsLoading(true);
       
       try {
-        // Try to fetch content from actual sources
         const allContent: Content[] = [];
-        
         for (const source of activeSources) {
           console.log(`Fetching content from source: ${source.name} - ${source.url}`);
-          
           try {
-            // Try to fetch from the actual source
-            const response = await fetch(source.url, {
-              method: 'GET',
+            // Use the custom crawler backend for homepage crawling
+            const response = await fetch('http://localhost:5002/crawl', {
+              method: 'POST',
               headers: {
-                'Accept': 'application/json, text/html',
-                'User-Agent': 'StreamHaven/1.0'
+                'Content-Type': 'application/json',
               },
-              mode: 'cors'
+              body: JSON.stringify({ url: source.url })
             });
-            
-            if (response.ok) {
-              const data = await response.text();
-              console.log(`Successfully fetched from ${source.name}, data length:`, data.length);
-              
-              // Try to parse as JSON first
-              try {
-                const jsonData = JSON.parse(data);
-                if (Array.isArray(jsonData)) {
-                  // If it's an array of content, add it
-                  jsonData.forEach((item: any, index: number) => {
-                    if (item.title && item.type) {
-                      allContent.push({
-                        id: Date.now() + index,
-                        title: item.title || `Content ${index + 1}`,
-                        year: item.year || new Date().getFullYear(),
-                        type: item.type === 'tv' ? 'tv' : 'movie',
-                        image: item.image || '/placeholder.svg',
-                        description: item.description || 'No description available',
-                        source: source.name,
-                        downloadUrl: item.downloadUrl || item.url,
-                        isLatest: index < 2,
-                        isEditorPick: index === 0
-                      });
-                    }
+            const data = await response.json();
+            if (data && typeof data === 'object' && 'error' in data) {
+              // If backend returns an error object, set error and skip demo content
+              setError(data.error);
+              console.error(`Backend error for ${source.name}:`, data.error);
+              return;
+            }
+            if (Array.isArray(data) && data.length > 0) {
+              data.forEach((item, index) => {
+                if (item.videoUrl) {
+                  allContent.push({
+                    id: Date.now() + index,
+                    title: item.title || `Content ${index + 1}`,
+                    year: new Date().getFullYear(),
+                    type: 'movie',
+                    image: item.image || '/placeholder.svg',
+                    description: item.description || 'Extracted by crawler',
+                    source: source.name,
+                    downloadUrl: item.videoUrl,
+                    isLatest: index < 2,
+                    isEditorPick: index === 0
                   });
                 }
-              } catch {
-                // If not JSON, generate placeholder content for this source
-                console.log(`${source.name} returned HTML/text, generating placeholder content`);
-                generatePlaceholderContent(source, allContent);
-              }
+              });
             } else {
-              console.warn(`Failed to fetch from ${source.name}:`, response.status, response.statusText);
               generatePlaceholderContent(source, allContent);
             }
           } catch (fetchError) {
-            console.warn(`Network error fetching from ${source.name}:`, fetchError);
+            console.warn(`crawler backend error for ${source.name}:`, fetchError);
             generatePlaceholderContent(source, allContent);
           }
         }
@@ -198,7 +200,7 @@ export const useSourceContent = () => {
     allContent.push(...placeholderMovies);
   };
 
-  const addSource = (sourceData: Omit<Source, 'id' | 'addedAt'>) => {
+  const addSource = async (sourceData: Omit<Source, 'id' | 'addedAt'>) => {
     console.log('Adding new source:', sourceData);
     
     // Validate URL and name with security checks
@@ -231,28 +233,28 @@ export const useSourceContent = () => {
     setSources(updatedSources);
     
     try {
-      localStorage.setItem('streamhaven_sources', JSON.stringify(updatedSources));
-      console.log('Successfully saved sources to localStorage');
+      await setStoredSources(updatedSources);
+      console.log('Successfully saved sources to Tauri storage');
     } catch (error) {
-      console.error('Failed to save sources to localStorage:', error);
+      console.error('Failed to save sources to Tauri storage:', error);
       throw new Error('Failed to save source');
     }
   };
 
-  const removeSource = (sourceId: string) => {
+  const removeSource = async (sourceId: string) => {
     console.log('Removing source:', sourceId);
     const updatedSources = sources.filter(source => source.id !== sourceId);
     setSources(updatedSources);
-    localStorage.setItem('streamhaven_sources', JSON.stringify(updatedSources));
+    await setStoredSources(updatedSources);
   };
 
-  const toggleSource = (sourceId: string) => {
+  const toggleSource = async (sourceId: string) => {
     console.log('Toggling source:', sourceId);
     const updatedSources = sources.map(source => 
       source.id === sourceId ? { ...source, isActive: !source.isActive } : source
     );
     setSources(updatedSources);
-    localStorage.setItem('streamhaven_sources', JSON.stringify(updatedSources));
+    await setStoredSources(updatedSources);
   };
 
   return {
@@ -265,3 +267,39 @@ export const useSourceContent = () => {
     toggleSource
   };
 };
+
+// Recommended streaming sources from FMHY (July 2025)
+export const RECOMMENDED_SOURCES = [
+  { name: 'LookMovie', url: 'https://lookmovie2.to/' },
+  { name: 'MovieWeb', url: 'https://movieweb.site/' },
+  { name: 'Bflix', url: 'https://bflix.gg/' },
+  { name: 'Soap2Day', url: 'https://soap2day.rs/' },
+];
+
+function extractVideoLinksFromHtml(html: string): Array<{ url: string; title?: string }> {
+  // 1. Regex for direct video file links
+  const videoRegex = /https?:\/\/[\w\-./?%&=:#+]+\.(mp4|webm|mkv|mov|avi)(\?[^"'\s>]*)?/gi;
+  const matches = html.match(videoRegex) || [];
+  const results = matches.map(url => ({ url }));
+
+  // 2. Extract from <video> and <source> tags
+  const videoTagRegex = /<video[^>]*src=["']([^"'>]+)["'][^>]*>/gi;
+  let match;
+  while ((match = videoTagRegex.exec(html)) !== null) {
+    results.push({ url: match[1] });
+  }
+  const sourceTagRegex = /<source[^>]*src=["']([^"'>]+)["'][^>]*>/gi;
+  while ((match = sourceTagRegex.exec(html)) !== null) {
+    results.push({ url: match[1] });
+  }
+
+  // 3. Try to extract from common streaming embed patterns (e.g., data-video, data-src)
+  const dataSrcRegex = /data-(video|src)=["']([^"'>]+)["']/gi;
+  while ((match = dataSrcRegex.exec(html)) !== null) {
+    results.push({ url: match[2] });
+  }
+
+  // Remove duplicates
+  const unique = Array.from(new Set(results.map(v => v.url))).map(url => ({ url }));
+  return unique;
+}
