@@ -25,8 +25,8 @@ export const Header = () => {
             {/* Desktop Navigation */}
             <nav className="hidden md:flex space-x-6">
               <button onClick={() => navigate('/')} className="text-white hover:text-[#E50914] transition-colors">Home</button>
-              <a href="#" className="text-white hover:text-[#E50914] transition-colors">Movies</a>
-              <a href="#" className="text-white hover:text-[#E50914] transition-colors">TV Shows</a>
+              <button onClick={() => {}} className="text-white hover:text-[#E50914] transition-colors">Movies</button>
+              <button onClick={() => {}} className="text-white hover:text-[#E50914] transition-colors">TV Shows</button>
               <button onClick={() => navigate('/sources')} className="text-white hover:text-[#E50914] transition-colors">Sources</button>
             </nav>
           </div>
@@ -73,8 +73,8 @@ export const Header = () => {
           <div className="md:hidden bg-black border-t border-gray-800">
             <nav className="flex flex-col space-y-4 p-4">
               <button onClick={() => navigate('/')} className="text-white hover:text-[#E50914] transition-colors text-left">Home</button>
-              <a href="#" className="text-white hover:text-[#E50914] transition-colors">Movies</a>
-              <a href="#" className="text-white hover:text-[#E50914] transition-colors">TV Shows</a>
+              <button onClick={() => {}} className="text-white hover:text-[#E50914] transition-colors">Movies</button>
+              <button onClick={() => {}} className="text-white hover:text-[#E50914] transition-colors">TV Shows</button>
               <button onClick={() => navigate('/sources')} className="text-white hover:text-[#E50914] transition-colors text-left">Sources</button>
               
               {/* Mobile Search */}

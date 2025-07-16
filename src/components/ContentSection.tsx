@@ -7,7 +7,7 @@ interface Content {
   id: number;
   title: string;
   year: number;
-  type: string;
+  type: 'movie' | 'tv';
   image: string;
   description: string;
   downloadUrl?: string;
@@ -44,6 +44,11 @@ export const ContentSection = ({ title, content, onDownload, showViewAll }: Cont
                   src={item.image}
                   alt={item.title}
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/placeholder.svg';
+                  }}
                 />
                 
                 {/* Overlay */}
