@@ -3,13 +3,15 @@ import { Header } from "@/components/Header";
 import { HeroSection } from "@/components/HeroSection";
 import { ContentSection } from "@/components/ContentSection";
 import { EmptyState } from "@/components/EmptyState";
+import { DownloadStatus } from "@/components/DownloadStatus";
 import { useToast } from "@/hooks/use-toast";
 import { useSourceContent } from "@/hooks/useSourceContent";
-import { validateDownloadUrl, createSecureFilename } from "@/utils/security";
+import { useDownloadManager } from "@/hooks/useDownloadManager";
 
 const Index = () => {
   const { toast } = useToast();
   const { sources, content, isLoading, error } = useSourceContent();
+  const { startDownload } = useDownloadManager();
 
   console.log('Index render - Sources:', sources.length, 'Content:', content.length, 'Loading:', isLoading, 'Error:', error);
 
@@ -20,18 +22,6 @@ const Index = () => {
       toast({
         title: "Download Unavailable",
         description: "No download link available for this content",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Validate download URL for security
-    const urlValidation = validateDownloadUrl(downloadUrl);
-    if (!urlValidation.isValid) {
-      console.error('Download URL validation failed:', urlValidation.error);
-      toast({
-        title: "Security Error",
-        description: urlValidation.error || "Invalid download URL",
         variant: "destructive"
       });
       return;
@@ -49,27 +39,22 @@ const Index = () => {
     try {
       console.log('Starting download for:', downloadUrl);
       
-      // Create download link
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = createSecureFilename(title, type);
-      link.rel = 'noopener noreferrer';
-      link.target = '_blank';
+      // Use thread-safe download manager
+      const downloadId = await startDownload(title, type, downloadUrl);
       
-      // Add to DOM, click, then remove
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast({
-        title: "Download Started",
-        description: `${title} download initiated`,
-      });
+      if (downloadId) {
+        toast({
+          title: "Download Queued",
+          description: `${title} has been added to the download queue`,
+        });
+      } else {
+        throw new Error('Failed to queue download');
+      }
     } catch (error) {
       console.error('Download failed:', error);
       toast({
         title: "Download Failed",
-        description: "Unable to start download. Please try again.",
+        description: error instanceof Error ? error.message : "Unable to start download. Please try again.",
         variant: "destructive"
       });
     }
@@ -110,6 +95,11 @@ const Index = () => {
       <HeroSection />
       
       <main className="pb-16">
+        {/* Download Status Component */}
+        <div className="container mx-auto px-4 py-4">
+          <DownloadStatus />
+        </div>
+        
         {sources.length === 0 ? (
           <EmptyState />
         ) : (

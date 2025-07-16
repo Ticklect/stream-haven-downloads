@@ -7,7 +7,7 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   base: mode === 'production' ? './' : '/',
   server: {
-    host: "::",
+    host: "localhost", // Security: only listen on localhost
     port: 8080,
   },
   build: {
@@ -22,12 +22,14 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Always use mock for web development, Tauri will use real API at runtime
-      '@tauri-apps/api': path.resolve(__dirname, 'src/empty-tauri-api.js'),
+      // Only use mock API in development mode
+      ...(mode === 'development' && {
+        '@tauri-apps/api': path.resolve(__dirname, 'src/empty-tauri-api.js'),
+      }),
     },
   },
   define: {
-    // Ensure require is available for the storage utility
-    global: 'globalThis',
+    // Add environment validation without global pollution
+    __DEV__: mode === 'development',
   },
 }));

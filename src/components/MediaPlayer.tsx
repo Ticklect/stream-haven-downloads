@@ -1,8 +1,8 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Play, Pause, Volume2, VolumeX, Maximize, Download, X, AlertTriangle } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, Download, X, AlertTriangle, RefreshCw, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Hls from 'hls.js';
 
@@ -32,50 +32,183 @@ export const MediaPlayer = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const { toast } = useToast();
+
+  // Constants for loading management
+  const MAX_RETRY_ATTEMPTS = 3;
+  const LOAD_TIMEOUT_MS = 30000; // 30 seconds
+  const RETRY_DELAY_MS = 2000; // 2 seconds
 
   // Use the actual URL passed from the content
   const videoUrl = url || "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+
+  // Generate multiple source URLs for fallback
+  const getVideoSources = useCallback(() => {
+    const sources = [];
+    
+    // Original URL
+    if (videoUrl) {
+      sources.push(videoUrl);
+    }
+    
+    // CORS proxy fallbacks (multiple options for reliability)
+    const corsProxies = [
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(videoUrl)}`,
+      `https://cors-anywhere.herokuapp.com/${videoUrl}`,
+      `https://thingproxy.freeboard.io/fetch/${videoUrl}`,
+      `https://corsproxy.io/?${encodeURIComponent(videoUrl)}`
+    ];
+    
+    sources.push(...corsProxies);
+    
+    return sources;
+  }, [videoUrl]);
+
+  // Clear load timeout
+  const clearLoadTimeout = useCallback(() => {
+    if (loadTimeout) {
+      clearTimeout(loadTimeout);
+      setLoadTimeout(null);
+    }
+  }, [loadTimeout]);
+
+  // Set load timeout
+  const setLoadTimeoutHandler = useCallback((sourceIndex: number) => {
+    clearLoadTimeout();
+    const timeout = setTimeout(() => {
+      console.warn('Video load timeout, trying next source');
+      setError('Loading timeout - trying alternative source');
+      // Will be handled by the loadVideoSource function
+    }, LOAD_TIMEOUT_MS);
+    setLoadTimeout(timeout);
+  }, [clearLoadTimeout]);
+
+  // Load video with fallback sources and timeout handling
+  const loadVideoSource = useCallback(async (sourceIndex: number = 0) => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const sources = getVideoSources();
+    if (sourceIndex >= sources.length) {
+      setError("All video sources failed to load. Please try again later.");
+      setIsLoading(false);
+      setIsRetrying(false);
+      setRetryCount(0);
+      clearLoadTimeout();
+      return;
+    }
+
+    const currentSource = sources[sourceIndex];
+    console.log(`Attempting to load video source ${sourceIndex + 1}/${sources.length}:`, currentSource);
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      setCurrentSourceIndex(sourceIndex);
+      setLoadTimeoutHandler(sourceIndex);
+
+      // Clean up previous HLS instance
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
+      // Check if it's an HLS stream
+      if (currentSource.includes('.m3u8') || currentSource.includes('application/x-mpegURL')) {
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            backBufferLength: 90,
+            maxLoadingDelay: 10, // 10 seconds max loading delay
+            maxBufferLength: 30, // 30 seconds max buffer
+            maxMaxBufferLength: 60 // 60 seconds absolute max
+          });
+          
+          hls.loadSource(currentSource);
+          hls.attachMedia(video);
+          
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            console.log('HLS manifest parsed successfully');
+            setIsLoading(false);
+            setError(null);
+            clearLoadTimeout();
+          });
+          
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            console.error('HLS error:', data);
+            if (data.fatal) {
+              hls.destroy();
+              clearLoadTimeout();
+              // Retry with next source
+              setTimeout(() => {
+                loadVideoSource(sourceIndex + 1);
+              }, RETRY_DELAY_MS);
+            }
+          });
+          
+          hlsRef.current = hls;
+        } else {
+          // Fallback for browsers without HLS support
+          console.log('HLS not supported, trying direct source');
+          video.src = currentSource;
+        }
+      } else {
+        // Regular video source
+        video.src = currentSource;
+      }
+
+      // Set video properties for better CORS compatibility
+      video.crossOrigin = 'anonymous';
+      video.preload = 'metadata';
+      
+    } catch (error) {
+      console.error('Error loading video source:', error);
+      clearLoadTimeout();
+      // Retry with next source
+      setTimeout(() => {
+        loadVideoSource(sourceIndex + 1);
+      }, RETRY_DELAY_MS);
+    }
+  }, [videoUrl, getVideoSources, setLoadTimeoutHandler, clearLoadTimeout]);
+
+  // Handle retry with exponential backoff
+  const handleRetry = useCallback(() => {
+    if (retryCount >= MAX_RETRY_ATTEMPTS) {
+      setError('Maximum retry attempts reached. Please try again later.');
+      setIsRetrying(false);
+      setRetryCount(0);
+      return;
+    }
+
+    setIsRetrying(true);
+    setRetryCount(prev => prev + 1);
+    
+    // Exponential backoff: 2s, 4s, 8s
+    const delay = RETRY_DELAY_MS * Math.pow(2, retryCount);
+    
+    setTimeout(() => {
+      loadVideoSource(0); // Start from first source
+    }, delay);
+  }, [retryCount, loadVideoSource]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    let hls: Hls | null = null;
-
-    // HLS support
-    if (videoUrl.endsWith('.m3u8')) {
-      if (Hls.isSupported()) {
-        hls = new Hls();
-        hls.loadSource(videoUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          setIsLoading(false);
-          setError(null);
-        });
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          setError('Failed to load HLS stream.');
-          setIsLoading(false);
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = videoUrl;
-      } else {
-        setError('HLS is not supported in this browser.');
-        setIsLoading(false);
-      }
-    } else {
-      video.src = videoUrl;
-    }
-
-    console.log('Setting up video event listeners for:', videoUrl);
-
     const updateTime = () => setCurrentTime(video.currentTime);
     const updateDuration = () => {
-      console.log('Video duration loaded:', video.duration);
-      setDuration(video.duration);
+      if (video.duration && isFinite(video.duration)) {
+        setDuration(video.duration);
+      }
     };
     const handleLoadStart = () => {
       console.log('Video load started');
@@ -100,13 +233,13 @@ export const MediaPlayer = ({
         
         switch (videoElement.error.code) {
           case MediaError.MEDIA_ERR_NETWORK:
-            errorMessage = "Network error. Check your connection or try a different source.";
+            errorMessage = "Network error. Trying alternative sources...";
             break;
           case MediaError.MEDIA_ERR_DECODE:
-            errorMessage = "Media format not supported by your browser.";
+            errorMessage = "Media format not supported. Trying alternative sources...";
             break;
           case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-            errorMessage = "Media source not supported. This might be a CORS issue.";
+            errorMessage = "Media source not supported. Trying alternative sources...";
             break;
           case MediaError.MEDIA_ERR_ABORTED:
             errorMessage = "Media loading was aborted.";
@@ -118,6 +251,11 @@ export const MediaPlayer = ({
       
       setError(errorMessage);
       setIsLoading(false);
+      
+      // Try next source after a short delay
+      setTimeout(() => {
+        loadVideoSource(currentSourceIndex + 1);
+      }, 1000);
     };
     const handleLoadedData = () => {
       console.log('Video data loaded successfully');
@@ -132,20 +270,12 @@ export const MediaPlayer = ({
     video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('error', handleError);
 
-    // Set video properties for better CORS compatibility
-    video.crossOrigin = 'anonymous';
-    video.preload = 'metadata';
-    
-    // Handle CORS issues more gracefully
-    const originalSrc = video.src;
-    const corsProxy = `https://cors-anywhere.herokuapp.com/${videoUrl}`;
-    
-    // Try original URL first, fallback to CORS proxy
-    video.src = videoUrl;
+    // Load initial video source
+    loadVideoSource();
 
     return () => {
-      if (hls) {
-        hls.destroy();
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
       }
       video.removeEventListener('timeupdate', updateTime);
       video.removeEventListener('loadedmetadata', updateDuration);
@@ -154,7 +284,7 @@ export const MediaPlayer = ({
       video.removeEventListener('loadeddata', handleLoadedData);
       video.removeEventListener('error', handleError);
     };
-  }, [url, videoUrl]);
+  }, [url, videoUrl, loadVideoSource, currentSourceIndex]);
 
   const togglePlay = async () => {
     const video = videoRef.current;
@@ -288,9 +418,30 @@ export const MediaPlayer = ({
                 <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
                 <div className="text-lg font-semibold mb-2">Media Unavailable</div>
                 <div className="text-sm opacity-80 mb-4">{error}</div>
-                <div className="text-xs opacity-60">
+                <div className="text-xs opacity-60 mb-4">
                   This could be due to CORS restrictions, network issues, or the media source being unavailable.
-                  Try refreshing or using a different source.
+                  The system is trying alternative sources automatically.
+                </div>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadVideoSource(0)}
+                    disabled={isRetrying}
+                    className="text-white border-white hover:bg-white hover:text-black"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRetrying ? 'animate-spin' : ''}`} />
+                    {isRetrying ? 'Retrying...' : 'Retry'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadVideoSource(currentSourceIndex + 1)}
+                    className="text-white border-white hover:bg-white hover:text-black"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Next Source
+                  </Button>
                 </div>
               </div>
             </div>

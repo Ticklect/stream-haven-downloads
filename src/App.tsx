@@ -12,9 +12,21 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
+      retry: (failureCount, error) => {
+        // Retry up to 3 times for network errors, 1 time for other errors
+        if (failureCount >= 3) return false;
+        if (error instanceof Error && error.message.includes('network')) {
+          return failureCount < 3;
+        }
+        return failureCount < 1;
+      },
+      staleTime: 2 * 60 * 1000, // 2 minutes (less aggressive)
+      gcTime: 5 * 60 * 1000, // 5 minutes (less aggressive)
+      refetchOnWindowFocus: false, // Prevent unnecessary refetches
+      refetchOnReconnect: true, // Refetch when network reconnects
+    },
+    mutations: {
+      retry: 1, // Retry mutations once
     },
   },
 });

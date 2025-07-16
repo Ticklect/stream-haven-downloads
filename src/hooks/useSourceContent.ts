@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { validateUrl, validateSourceName, safeJsonParse } from '@/utils/security';
 import { get, set } from '@/utils/storage';
+import { useDebounce } from './use-debounce';
 
 interface Content {
   id: number;
@@ -24,33 +25,67 @@ interface Source {
   addedAt: Date;
 }
 
+interface SourceError {
+  sourceId: string;
+  error: string;
+}
+
 export const useSourceContent = () => {
   const [sources, setSources] = useState<Source[]>([]);
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<SourceError[]>([]);
+  const [globalError, setGlobalError] = useState<string | null>(null);
 
+  // Refs for managing async operations and preventing race conditions
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const operationIdRef = useRef<number>(0);
+  const isMountedRef = useRef(true);
 
+  // Debounce sources to prevent rapid re-fetches
+  const debouncedSources = useDebounce(sources, 500);
+
+  // Cleanup function to prevent memory leaks
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+      // Cancel any ongoing requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Async storage get/set that works in both Tauri and web
-  async function getStoredSources() {
+  const getStoredSources = useCallback(async () => {
     return await get('streamhaven_sources');
-  }
+  }, []);
 
-  async function setStoredSources(sources) {
+  const setStoredSources = useCallback(async (sources: Source[]) => {
     await set('streamhaven_sources', JSON.stringify(sources));
-  }
+  }, []);
 
   // Load sources from Tauri storage with security validation
   useEffect(() => {
-    (async () => {
+    const loadSources = async () => {
+      if (!isMountedRef.current) return;
+      
       console.log('Loading sources from Tauri storage...');
       let savedSources: string | null = null;
       try {
         savedSources = await getStoredSources();
       } catch (e) {
         console.error('Failed to get sources from Tauri storage:', e);
+        if (isMountedRef.current) {
+          setGlobalError('Failed to load saved sources');
+        }
+        return;
       }
+      
+      if (!isMountedRef.current) return;
+      
       if (savedSources) {
         try {
           const parsed = safeJsonParse(savedSources, []);
@@ -65,112 +100,243 @@ export const useSourceContent = () => {
               const nameValidation = validateSourceName(s.name);
               return urlValidation.isValid && nameValidation.isValid;
             })
-            .map((source) => ({
+            .map((source: any) => ({
               ...source,
               addedAt: typeof source.addedAt === 'string' ? new Date(source.addedAt) : (source.addedAt instanceof Date ? source.addedAt : new Date())
             }));
           console.log('Valid sources after validation:', validSources);
-          setSources(validSources);
-          // Clean up storage if we removed invalid sources
-          if (validSources.length !== parsed.length) {
-            await setStoredSources(validSources);
+          
+          if (isMountedRef.current) {
+            setSources(validSources);
+            // Clean up storage if we removed invalid sources
+            if (validSources.length !== parsed.length) {
+              await setStoredSources(validSources);
+            }
           }
         } catch (error) {
           console.error('Failed to parse saved sources:', error);
-          setError('Failed to load saved sources');
-          await setStoredSources('');
+          if (isMountedRef.current) {
+            setGlobalError('Failed to load saved sources');
+            await setStoredSources([]);
+          }
         }
       } else {
         console.log('No saved sources found');
       }
-    })();
-  }, []);
+    };
 
-  // Generate content when sources change
+    loadSources();
+  }, [getStoredSources, setStoredSources]);
+
+  // Generate content when debounced sources change (prevents rapid re-fetches)
   useEffect(() => {
     const generateContentFromSources = async () => {
-      console.log('generateContentFromSources called, sources:', sources);
-      setError(null);
+      if (!isMountedRef.current) return;
       
-      const activeSources = sources.filter(source => source.isActive);
+      // Cancel any ongoing operation
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // Create new abort controller for this operation
+      abortControllerRef.current = new AbortController();
+      const currentOperationId = ++operationIdRef.current;
+      
+      console.log('generateContentFromSources called, sources:', debouncedSources);
+      setGlobalError(null);
+      setErrors([]);
+      
+      const activeSources = debouncedSources.filter(source => source.isActive);
       console.log('Active sources:', activeSources);
       
       if (activeSources.length === 0) {
         console.log('No active sources, setting empty content');
-        setContent([]);
-        setIsLoading(false);
+        if (isMountedRef.current && currentOperationId === operationIdRef.current) {
+          setContent([]);
+          setIsLoading(false);
+        }
         return;
       }
 
       console.log('Starting to generate content for active sources');
-      setIsLoading(true);
+      if (isMountedRef.current) {
+        setIsLoading(true);
+      }
       
       try {
         const allContent: Content[] = [];
-        for (const source of activeSources) {
-          console.log(`Fetching content from source: ${source.name} - ${source.url}`);
+        const sourceErrors: SourceError[] = [];
+        
+        // Fetch content from all sources in parallel with individual error handling
+        const contentPromises = activeSources.map(async (source) => {
           try {
-            // Use the custom crawler backend for homepage crawling
-            const response = await fetch('http://localhost:5002/crawl', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ url: source.url })
-            });
-            const data = await response.json();
-            if (data && typeof data === 'object' && 'error' in data) {
-              // If backend returns an error object, set error and skip demo content
-              setError(data.error);
-              console.error(`Backend error for ${source.name}:`, data.error);
-              return;
-            }
-            if (Array.isArray(data) && data.length > 0) {
-              data.forEach((item, index) => {
-                if (item.videoUrl) {
-                  allContent.push({
-                    id: Date.now() + index,
-                    title: item.title || `Content ${index + 1}`,
-                    year: new Date().getFullYear(),
-                    type: 'movie',
-                    image: item.image || '/placeholder.svg',
-                    description: item.description || 'Extracted by crawler',
-                    source: source.name,
-                    downloadUrl: item.videoUrl,
-                    isLatest: index < 2,
-                    isEditorPick: index === 0
-                  });
-                }
-              });
+            console.log(`Fetching content from source: ${source.name} - ${source.url}`);
+            const content = await fetchContentFromSource(source, abortControllerRef.current!.signal);
+            
+            if (content && content.length > 0) {
+              console.log(`Successfully fetched ${content.length} items from ${source.name}`);
+              return { source, content, error: null };
             } else {
-              generatePlaceholderContent(source, allContent);
+              console.warn(`No content found for ${source.name}, using fallback`);
+              const fallbackContent = generatePlaceholderContent(source);
+              return { source, content: fallbackContent, error: null };
             }
           } catch (fetchError) {
-            console.warn(`crawler backend error for ${source.name}:`, fetchError);
-            generatePlaceholderContent(source, allContent);
+            console.warn(`Content fetching failed for ${source.name}:`, fetchError);
+            const fallbackContent = generatePlaceholderContent(source);
+            return { 
+              source, 
+              content: fallbackContent, 
+              error: { sourceId: source.id, error: fetchError instanceof Error ? fetchError.message : 'Unknown error' }
+            };
           }
+        });
+        
+        const results = await Promise.allSettled(contentPromises);
+        
+        // Check if operation was cancelled
+        if (!isMountedRef.current || currentOperationId !== operationIdRef.current) {
+          return;
+        }
+        
+        // Process results
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const { content: sourceContent, error } = result.value;
+            allContent.push(...sourceContent);
+            if (error) {
+              sourceErrors.push(error);
+            }
+          } else {
+            console.error('Source processing failed:', result.reason);
+          }
+        });
+        
+        // Show warnings for failed sources but don't block the entire process
+        if (sourceErrors.length > 0 && sourceErrors.length === activeSources.length) {
+          setGlobalError(`All sources failed: ${sourceErrors.map(e => e.error).join(', ')}`);
+        } else if (sourceErrors.length > 0) {
+          console.warn('Some sources failed:', sourceErrors);
+          setErrors(sourceErrors);
         }
         
         console.log('Final content array:', allContent);
         console.log('Total content items:', allContent.length);
         
-        setContent(allContent);
-        setIsLoading(false);
+        if (isMountedRef.current && currentOperationId === operationIdRef.current) {
+          setContent(allContent);
+          setIsLoading(false);
+        }
         
       } catch (error) {
         console.error('Failed to generate content from sources:', error);
-        setError('Failed to load content from sources');
-        setContent([]);
-        setIsLoading(false);
+        if (isMountedRef.current && currentOperationId === operationIdRef.current) {
+          setGlobalError('Failed to load content from sources');
+          setContent([]);
+          setIsLoading(false);
+        }
       }
     };
 
     generateContentFromSources();
-  }, [sources]);
+  }, [debouncedSources]);
+
+  // Enhanced content fetching with multiple fallback strategies and request cancellation
+  const fetchContentFromSource = useCallback(async (source: Source, signal: AbortSignal): Promise<Content[]> => {
+    const strategies = [
+      // Strategy 1: Try crawler backend
+      async () => {
+        const response = await fetch('http://localhost:5002/crawl', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: source.url }),
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Crawler backend failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        if (data && typeof data === 'object' && 'error' in data) {
+          throw new Error(data.error);
+        }
+        
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error('No content returned from crawler');
+        }
+        
+        return data.map((item, index) => ({
+          id: Date.now() + index,
+          title: item.title || `Content ${index + 1}`,
+          year: new Date().getFullYear(),
+          type: 'movie' as const,
+          image: item.image || '/placeholder.svg',
+          description: item.description || 'Extracted by crawler',
+          source: source.name,
+          downloadUrl: item.videoUrl,
+          isLatest: index < 2,
+          isEditorPick: index === 0
+        })).filter(item => item.downloadUrl);
+      },
+      
+      // Strategy 2: Try direct HTML parsing (fallback)
+      async () => {
+        const response = await fetch(source.url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          },
+          signal: AbortSignal.timeout(8000)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Direct fetch failed: ${response.status}`);
+        }
+        
+        const html = await response.text();
+        const videoLinks = extractVideoLinksFromHtml(html);
+        
+        if (videoLinks.length === 0) {
+          throw new Error('No video links found in HTML');
+        }
+        
+        return videoLinks.slice(0, 5).map((link, index) => ({
+          id: Date.now() + index,
+          title: `Content from ${source.name} ${index + 1}`,
+          year: new Date().getFullYear(),
+          type: 'movie' as const,
+          image: '/placeholder.svg',
+          description: `Extracted from ${source.name}`,
+          source: source.name,
+          downloadUrl: link.url,
+          isLatest: index < 2,
+          isEditorPick: index === 0
+        }));
+      }
+    ];
+    
+    // Try each strategy in order
+    for (let i = 0; i < strategies.length; i++) {
+      try {
+        console.log(`Trying content fetching strategy ${i + 1} for ${source.name}`);
+        const content = await strategies[i]();
+        if (content && content.length > 0) {
+          return content;
+        }
+      } catch (error) {
+        console.warn(`Strategy ${i + 1} failed for ${source.name}:`, error instanceof Error ? error.message : error);
+        if (i === strategies.length - 1) {
+          throw error; // Re-throw if all strategies failed
+        }
+      }
+    }
+    
+    throw new Error('All content fetching strategies failed');
+  }, []);
 
   // Helper function to generate placeholder content when source fails
-  const generatePlaceholderContent = (source: Source, allContent: Content[]) => {
-    const sourceIndex = allContent.length;
+  const generatePlaceholderContent = (source: Source) => {
+    const sourceIndex = content.length; // Use content length to ensure unique IDs
     
     const placeholderMovies = [
       {
@@ -197,7 +363,7 @@ export const useSourceContent = () => {
       }
     ];
     
-    allContent.push(...placeholderMovies);
+    return placeholderMovies;
   };
 
   const addSource = async (sourceData: Omit<Source, 'id' | 'addedAt'>) => {
@@ -261,7 +427,7 @@ export const useSourceContent = () => {
     sources,
     content,
     isLoading,
-    error,
+    error: globalError, // Renamed from 'error' to 'globalError'
     addSource,
     removeSource,
     toggleSource
