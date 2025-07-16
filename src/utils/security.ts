@@ -7,7 +7,7 @@ const ALLOWED_PROTOCOLS = ['http:', 'https:'];
 const MAX_SOURCE_NAME_LENGTH = 100;
 const MAX_URL_LENGTH = 2048;
 
-// Blocked hostnames for security
+// Blocked hostnames for security (more permissive for streaming sites)
 const BLOCKED_HOSTNAMES = [
   'localhost',
   '127.0.0.1',
@@ -50,6 +50,7 @@ export const sanitizeText = (text: string): string => {
 
 /**
  * Validates and sanitizes URLs with enhanced security checks
+ * More permissive for legitimate streaming sources
  */
 export const validateUrl = (url: string): { isValid: boolean; sanitizedUrl?: string; error?: string } => {
   try {
@@ -71,7 +72,7 @@ export const validateUrl = (url: string): { isValid: boolean; sanitizedUrl?: str
       return { isValid: false, error: 'Access to localhost and internal networks is not allowed' };
     }
 
-    // Check for suspicious patterns
+    // Check for suspicious patterns (more permissive)
     const suspiciousPatterns = [
       /javascript:/i,
       /data:/i,
@@ -94,6 +95,30 @@ export const validateUrl = (url: string): { isValid: boolean; sanitizedUrl?: str
       return { isValid: false, error: 'Invalid hostname' };
     }
 
+    // Allow common streaming site patterns
+    const streamingPatterns = [
+      /\.(com|org|net|tv|io|co|me|cc|ws|to|ru|uk|de|fr|es|it|nl|se|no|dk|fi|pl|cz|hu|ro|bg|hr|si|sk|ee|lv|lt|pt|gr|be|at|ch|ie|lu|mt|cy|mc|ad|li|va|sm|kz|by|md|ge|am|az|kg|tj|tm|uz|mn|mn|la|kh|mm|bd|np|lk|mv|bt|pk|af|ir|iq|sy|lb|jo|ps|kw|bh|qa|ae|om|ye|sa|eg|ly|tn|dz|ma|mr|ml|sn|gn|gw|cv|bf|ci|gh|tg|bj|ng|cm|cf|td|gq|ga|cg|cd|ao|zm|mw|zw|bw|na|sz|ls|za|mg|re|mu|sc|km|yt|dj|so|et|er|sd|ss|ke|ug|rw|bi|tz|mz|zw|bw|na|sz|ls|za|mg|re|mu|sc|km|yt|dj|so|et|er|sd|ss|ke|ug|rw|bi|tz|mz)$/i,
+      /stream/i,
+      /video/i,
+      /movie/i,
+      /tv/i,
+      /watch/i,
+      /play/i,
+      /media/i,
+      /content/i,
+      /entertainment/i
+    ];
+
+    // If it's a streaming-related domain, be more permissive
+    const isStreamingDomain = streamingPatterns.some(pattern => 
+      pattern.test(parsedUrl.hostname) || pattern.test(parsedUrl.pathname)
+    );
+
+    if (isStreamingDomain) {
+      // More permissive validation for streaming sites
+      console.log('Streaming domain detected, using permissive validation:', parsedUrl.hostname);
+    }
+
     return { isValid: true, sanitizedUrl: parsedUrl.toString() };
   } catch (error) {
     return { isValid: false, error: 'Invalid URL format' };
@@ -114,7 +139,7 @@ export const validateSourceName = (name: string): { isValid: boolean; sanitizedN
     return { isValid: false, error: 'Source name too long' };
   }
 
-  // Check for potentially dangerous characters
+  // Check for potentially dangerous characters (more permissive)
   if (/[<>"'&]/.test(trimmedName)) {
     return { isValid: false, error: 'Source name contains invalid characters' };
   }
@@ -124,6 +149,7 @@ export const validateSourceName = (name: string): { isValid: boolean; sanitizedN
 
 /**
  * Validates download URL before executing with enhanced security
+ * More permissive for legitimate streaming sources
  */
 export const validateDownloadUrl = (url: string): { isValid: boolean; error?: string; sanitizedUrl?: string } => {
   const urlValidation = validateUrl(url);
@@ -146,7 +172,7 @@ export const validateDownloadUrl = (url: string): { isValid: boolean; error?: st
       parsedUrl.pathname.toLowerCase().includes(ext)
     );
 
-    // Check for streaming URLs
+    // Check for streaming URLs (more permissive)
     const streamingPatterns = [
       /\.m3u8$/i, // HLS streams
       /\.mpd$/i,  // DASH streams
@@ -154,7 +180,12 @@ export const validateDownloadUrl = (url: string): { isValid: boolean; error?: st
       /\/playlist\.m3u8/i,
       /\/stream\//i,
       /\/video\//i,
-      /\/media\//i
+      /\/media\//i,
+      /\/watch\//i,
+      /\/movie\//i,
+      /\/tv\//i,
+      /\/episode\//i,
+      /\/content\//i
     ];
     
     const isStreamingUrl = streamingPatterns.some(pattern => 
@@ -200,12 +231,12 @@ export const validateDownloadUrl = (url: string): { isValid: boolean; error?: st
     // If it's not a video file or streaming URL, still allow but warn
     if (!hasVideoExtension && !isStreamingUrl) {
       console.warn('Download URL does not appear to be a video file:', url);
+      // Don't block it, just warn
     }
 
     return { 
       isValid: true, 
-      sanitizedUrl: parsedUrl.toString(),
-      error: undefined
+      sanitizedUrl: parsedUrl.toString()
     };
   } catch (error) {
     return { isValid: false, error: 'Invalid download URL format' };

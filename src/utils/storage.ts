@@ -112,6 +112,11 @@ export const set = async (key: string, value: string): Promise<void> => {
     
     try {
       localStorage.setItem(key, value);
+      // Verify the value was actually stored
+      const storedValue = localStorage.getItem(key);
+      if (storedValue !== value) {
+        throw new Error('Storage verification failed - value not persisted');
+      }
     } catch (localError) {
       // Handle localStorage specific errors
       if (localError instanceof Error) {
@@ -147,6 +152,11 @@ export const remove = async (key: string): Promise<void> => {
     
     try {
       localStorage.removeItem(key);
+      // Verify the value was actually removed
+      const remainingValue = localStorage.getItem(key);
+      if (remainingValue !== null) {
+        throw new Error('Storage verification failed - value not removed');
+      }
     } catch (localError) {
       // Handle localStorage specific errors
       if (localError instanceof Error) {
@@ -173,6 +183,10 @@ export const clear = async (): Promise<void> => {
     
     try {
       localStorage.clear();
+      // Verify storage was actually cleared
+      if (localStorage.length !== 0) {
+        throw new Error('Storage verification failed - not all data cleared');
+      }
     } catch (localError) {
       // Handle localStorage specific errors
       if (localError instanceof Error) {

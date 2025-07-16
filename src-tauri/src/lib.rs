@@ -7,6 +7,20 @@ use std::collections::HashMap;
 pub fn run() {
   tauri::Builder::default()
     .setup(|app| {
+      // Spawn the backend server when the app launches
+      #[cfg(not(target_os = "android"))]
+      {
+        use std::process::Command;
+        use std::process::Stdio;
+        std::thread::spawn(|| {
+          let _ = Command::new("node")
+            .arg("crawler_backend.cjs")
+            .current_dir("..") // Adjust if needed
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+        });
+      }
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
