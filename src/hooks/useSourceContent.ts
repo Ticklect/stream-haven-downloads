@@ -91,88 +91,65 @@ export const useSourceContent = () => {
       setIsLoading(true);
       
       try {
-        // Generate content for each active source with proper URLs
+        // Try to fetch content from actual sources
         const allContent: Content[] = [];
         
-        activeSources.forEach((source, sourceIndex) => {
-          console.log(`Generating content for source: ${source.name}`);
+        for (const source of activeSources) {
+          console.log(`Fetching content from source: ${source.name} - ${source.url}`);
           
-          // Use accessible demo content with working URLs
-          const movies = [
-            {
-              id: sourceIndex * 1000 + 1,
-              title: "Big Buck Bunny",
-              year: 2008,
-              type: "movie" as const,
-              image: "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg?x11217",
-              description: "A large and lovable rabbit deals with three tiny bullies, led by a flying squirrel, who are determined to squelch his happiness.",
-              source: source.name,
-              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-              isLatest: sourceIndex === 0
-            },
-            {
-              id: sourceIndex * 1000 + 2,
-              title: "Elephant Dream",
-              year: 2006,
-              type: "movie" as const,
-              image: "https://archive.org/download/ElephantsDream/ElephantsDream.thumbs/Elephants_Dream_1024kb.mp4_000001.jpg",
-              description: "Friends Proog and Emo journey inside the folds of a seemingly infinite Machine, exploring the dark and twisted complex of wires, gears, and cogs.",
-              source: source.name,
-              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-              isEditorPick: sourceIndex === 0
-            },
-            {
-              id: sourceIndex * 1000 + 3,
-              title: "Sintel",
-              year: 2010,
-              type: "movie" as const,
-              image: "https://durian.blender.org/wp-content/uploads/2010/06/sintel_poster.jpg",
-              description: "A lonely young woman, Sintel, helps and befriends a dragon, whom she calls Scales.",
-              source: source.name,
-              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
-            },
-            {
-              id: sourceIndex * 1000 + 4,
-              title: "Tears of Steel",
-              year: 2012,
-              type: "movie" as const,
-              image: "https://mango.blender.org/wp-content/uploads/2012/09/TOS-poster-final.png",
-              description: "In an apocalyptic future, a group of soldiers and scientists takes refuge in Amsterdam to try to stop an army of robots.",
-              source: source.name,
-              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+          try {
+            // Try to fetch from the actual source
+            const response = await fetch(source.url, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json, text/html',
+                'User-Agent': 'StreamHaven/1.0'
+              },
+              mode: 'cors'
+            });
+            
+            if (response.ok) {
+              const data = await response.text();
+              console.log(`Successfully fetched from ${source.name}, data length:`, data.length);
+              
+              // Try to parse as JSON first
+              try {
+                const jsonData = JSON.parse(data);
+                if (Array.isArray(jsonData)) {
+                  // If it's an array of content, add it
+                  jsonData.forEach((item: any, index: number) => {
+                    if (item.title && item.type) {
+                      allContent.push({
+                        id: Date.now() + index,
+                        title: item.title || `Content ${index + 1}`,
+                        year: item.year || new Date().getFullYear(),
+                        type: item.type === 'tv' ? 'tv' : 'movie',
+                        image: item.image || '/placeholder.svg',
+                        description: item.description || 'No description available',
+                        source: source.name,
+                        downloadUrl: item.downloadUrl || item.url,
+                        isLatest: index < 2,
+                        isEditorPick: index === 0
+                      });
+                    }
+                  });
+                }
+              } catch {
+                // If not JSON, generate placeholder content for this source
+                console.log(`${source.name} returned HTML/text, generating placeholder content`);
+                generatePlaceholderContent(source, allContent);
+              }
+            } else {
+              console.warn(`Failed to fetch from ${source.name}:`, response.status, response.statusText);
+              generatePlaceholderContent(source, allContent);
             }
-          ];
-
-          // Generate TV shows with accessible content
-          const tvShows = [
-            {
-              id: sourceIndex * 1000 + 101,
-              title: "Sample Video",
-              year: 2023,
-              type: "tv" as const,
-              image: "https://storage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerBlazes.jpg",
-              description: "A high-quality sample video for testing streaming capabilities.",
-              source: source.name,
-              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-              isLatest: sourceIndex === 1
-            },
-            {
-              id: sourceIndex * 1000 + 102,
-              title: "Demo Content",
-              year: 2022,
-              type: "tv" as const,
-              image: "https://storage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerEscapes.jpg",
-              description: "Demo video content for streaming platform testing.",
-              source: source.name,
-              downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-              isEditorPick: sourceIndex === 1
-            }
-          ];
-
-          allContent.push(...movies, ...tvShows);
-        });
+          } catch (fetchError) {
+            console.warn(`Network error fetching from ${source.name}:`, fetchError);
+            generatePlaceholderContent(source, allContent);
+          }
+        }
         
-        console.log('Generated content array:', allContent);
+        console.log('Final content array:', allContent);
         console.log('Total content items:', allContent.length);
         
         setContent(allContent);
@@ -188,6 +165,38 @@ export const useSourceContent = () => {
 
     generateContentFromSources();
   }, [sources]);
+
+  // Helper function to generate placeholder content when source fails
+  const generatePlaceholderContent = (source: Source, allContent: Content[]) => {
+    const sourceIndex = allContent.length;
+    
+    const placeholderMovies = [
+      {
+        id: Date.now() + sourceIndex * 100 + 1,
+        title: `Sample Movie from ${source.name}`,
+        year: 2023,
+        type: "movie" as const,
+        image: "/placeholder.svg",
+        description: `Demo content from ${source.name}. This source may be temporarily unavailable.`,
+        source: source.name,
+        downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+        isLatest: sourceIndex === 0
+      },
+      {
+        id: Date.now() + sourceIndex * 100 + 2,
+        title: `Demo Series from ${source.name}`,
+        year: 2023,
+        type: "tv" as const,
+        image: "/placeholder.svg",
+        description: `Demo TV series from ${source.name}. Check back later for real content.`,
+        source: source.name,
+        downloadUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+        isEditorPick: sourceIndex === 0
+      }
+    ];
+    
+    allContent.push(...placeholderMovies);
+  };
 
   const addSource = (sourceData: Omit<Source, 'id' | 'addedAt'>) => {
     console.log('Adding new source:', sourceData);

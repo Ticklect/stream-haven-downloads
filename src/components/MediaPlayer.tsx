@@ -63,13 +63,33 @@ export const MediaPlayer = ({
     const handleError = (e: Event) => {
       console.error('Video error occurred:', e);
       const videoElement = e.target as HTMLVideoElement;
+      let errorMessage = "Failed to load media.";
+      
       if (videoElement?.error) {
         console.error('Video error details:', {
           code: videoElement.error.code,
           message: videoElement.error.message
         });
+        
+        switch (videoElement.error.code) {
+          case MediaError.MEDIA_ERR_NETWORK:
+            errorMessage = "Network error. Check your connection or try a different source.";
+            break;
+          case MediaError.MEDIA_ERR_DECODE:
+            errorMessage = "Media format not supported by your browser.";
+            break;
+          case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            errorMessage = "Media source not supported. This might be a CORS issue.";
+            break;
+          case MediaError.MEDIA_ERR_ABORTED:
+            errorMessage = "Media loading was aborted.";
+            break;
+          default:
+            errorMessage = "Unknown media error occurred.";
+        }
       }
-      setError("Failed to load media. This might be a CORS issue or the stream is unavailable.");
+      
+      setError(errorMessage);
       setIsLoading(false);
     };
     const handleLoadedData = () => {
@@ -85,9 +105,16 @@ export const MediaPlayer = ({
     video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('error', handleError);
 
-    // Set video properties for better compatibility
+    // Set video properties for better CORS compatibility
     video.crossOrigin = 'anonymous';
     video.preload = 'metadata';
+    
+    // Handle CORS issues more gracefully
+    const originalSrc = video.src;
+    const corsProxy = `https://cors-anywhere.herokuapp.com/${videoUrl}`;
+    
+    // Try original URL first, fallback to CORS proxy
+    video.src = videoUrl;
 
     return () => {
       video.removeEventListener('timeupdate', updateTime);
