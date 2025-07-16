@@ -1,8 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
-import { Play, Pause, Volume2, VolumeX, Maximize, Download, X } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, Download, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface MediaPlayerProps {
@@ -30,57 +30,98 @@ export const MediaPlayer = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasInteracted, setHasInteracted] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Use the actual URL passed from the content, fallback to demo if needed
+  // Use the actual URL passed from the content
   const videoUrl = url || "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
+    console.log('Setting up video event listeners for:', videoUrl);
+
     const updateTime = () => setCurrentTime(video.currentTime);
-    const updateDuration = () => setDuration(video.duration);
-    const handleLoadStart = () => setIsLoading(true);
-    const handleCanPlay = () => setIsLoading(false);
-    const handleError = () => {
-      setError("Failed to load media. This might be a protected or unavailable stream.");
+    const updateDuration = () => {
+      console.log('Video duration loaded:', video.duration);
+      setDuration(video.duration);
+    };
+    const handleLoadStart = () => {
+      console.log('Video load started');
+      setIsLoading(true);
+      setError(null);
+    };
+    const handleCanPlay = () => {
+      console.log('Video can play');
       setIsLoading(false);
+      setError(null);
+    };
+    const handleError = (e: Event) => {
+      console.error('Video error occurred:', e);
+      const videoElement = e.target as HTMLVideoElement;
+      if (videoElement?.error) {
+        console.error('Video error details:', {
+          code: videoElement.error.code,
+          message: videoElement.error.message
+        });
+      }
+      setError("Failed to load media. This might be a CORS issue or the stream is unavailable.");
+      setIsLoading(false);
+    };
+    const handleLoadedData = () => {
+      console.log('Video data loaded successfully');
+      setIsLoading(false);
+      setError(null);
     };
 
     video.addEventListener('timeupdate', updateTime);
     video.addEventListener('loadedmetadata', updateDuration);
     video.addEventListener('loadstart', handleLoadStart);
     video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('error', handleError);
+
+    // Set video properties for better compatibility
+    video.crossOrigin = 'anonymous';
+    video.preload = 'metadata';
 
     return () => {
       video.removeEventListener('timeupdate', updateTime);
       video.removeEventListener('loadedmetadata', updateDuration);
       video.removeEventListener('loadstart', handleLoadStart);
       video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('loadeddata', handleLoadedData);
       video.removeEventListener('error', handleError);
     };
-  }, [url]);
+  }, [url, videoUrl]);
 
   const togglePlay = async () => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || error) return;
 
     try {
+      if (!hasInteracted) {
+        setHasInteracted(true);
+      }
+
       if (isPlaying) {
         video.pause();
+        setIsPlaying(false);
       } else {
+        console.log('Attempting to play video...');
         await video.play();
+        setIsPlaying(true);
+        console.log('Video playing successfully');
       }
-      setIsPlaying(!isPlaying);
     } catch (err) {
+      console.error('Playback error:', err);
       toast({
         title: "Playback Error",
-        description: "Unable to play this media. The source might be unavailable.",
+        description: "Unable to play this media. The source might be unavailable or blocked by CORS.",
         variant: "destructive"
       });
     }
@@ -88,7 +129,7 @@ export const MediaPlayer = ({
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const video = videoRef.current;
-    if (!video || !duration) return;
+    if (!video || !duration || error) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -109,12 +150,17 @@ export const MediaPlayer = ({
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
 
-    if (!isFullscreen) {
-      containerRef.current.requestFullscreen();
-    } else {
-      document.exitFullscreen();
+    try {
+      if (!isFullscreen) {
+        containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error('Fullscreen error:', err);
     }
-    setIsFullscreen(!isFullscreen);
   };
 
   const handleDownload = () => {
@@ -130,6 +176,7 @@ export const MediaPlayer = ({
   };
 
   const formatTime = (time: number) => {
+    if (!isFinite(time)) return "0:00";
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -164,13 +211,14 @@ export const MediaPlayer = ({
             src={videoUrl}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
-            onError={() => setError("Media failed to load")}
+            playsInline
+            controls={false}
           >
             <track kind="captions" />
           </video>
 
           {/* Loading Overlay */}
-          {isLoading && (
+          {isLoading && !error && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50">
               <div className="text-white text-lg">Loading media...</div>
             </div>
@@ -179,12 +227,13 @@ export const MediaPlayer = ({
           {/* Error Overlay */}
           {error && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-              <div className="text-center text-white p-6">
+              <div className="text-center text-white p-6 max-w-md">
+                <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
                 <div className="text-lg font-semibold mb-2">Media Unavailable</div>
-                <div className="text-sm opacity-80">{error}</div>
-                <div className="text-xs opacity-60 mt-2">
-                  Note: This is a demo player. In a real implementation, 
-                  you would need proper streaming infrastructure.
+                <div className="text-sm opacity-80 mb-4">{error}</div>
+                <div className="text-xs opacity-60">
+                  This could be due to CORS restrictions, network issues, or the media source being unavailable.
+                  Try refreshing or using a different source.
                 </div>
               </div>
             </div>
@@ -225,6 +274,7 @@ export const MediaPlayer = ({
                   size="sm"
                   onClick={toggleMute}
                   className="text-white hover:bg-white/20"
+                  disabled={!!error}
                 >
                   {isMuted ? (
                     <VolumeX className="h-4 w-4" />
