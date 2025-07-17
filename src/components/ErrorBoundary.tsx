@@ -8,7 +8,7 @@ interface Props {
 
 interface State {
   hasError: boolean;
-  error?: Error;
+  error?: Error | undefined;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -16,19 +16,23 @@ export class ErrorBoundary extends Component<Props, State> {
     hasError: false
   };
 
-  public static getDerivedStateFromError(error: Error): State {
+  public static override getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Error caught by boundary:', error, errorInfo);
+    // Optionally report error to external service
+    if (typeof window !== 'undefined' && typeof (window as unknown as { reportError?: (args: { error: Error, errorInfo: ErrorInfo }) => void }).reportError === 'function') {
+      (window as unknown as { reportError: (args: { error: Error, errorInfo: ErrorInfo }) => void }).reportError({ error, errorInfo });
+    }
   }
 
   private handleReset = () => {
     this.setState({ hasError: false, error: undefined });
   };
 
-  public render() {
+  public override render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -38,6 +42,14 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-gray-400 mb-6">
               {this.state.error?.message || 'An unexpected error occurred'}
             </p>
+            {this.state.error && (
+              <pre className="text-xs text-gray-500 bg-gray-900 rounded p-2 mb-4 overflow-x-auto max-w-full">
+                {this.state.error.stack}
+              </pre>
+            )}
+            <div className="text-xs text-gray-400 mb-4">
+              If this is a network error, please check your connection and try again.
+            </div>
             <div className="space-y-3">
               <Button 
                 onClick={this.handleReset}

@@ -88,33 +88,30 @@ export async function testRaceConditionPrevention() {
 }
 
 // Test download cancellation
-export async function testDownloadCancellation() {
+export async function testDownloadCancellation(): Promise<{ downloadId: string; cancelled: boolean; status: 'cancelled' | 'completed' | 'failed' }> {
   console.log('🧪 Testing Download Cancellation...');
-  
   try {
     // Add a download
     const downloadId = await downloadManager.addDownload('Cancellable Movie', 'movie', 'https://example.com/cancel.mp4');
     console.log('📥 Added download:', downloadId);
-    
     // Wait a bit
     await new Promise(resolve => setTimeout(resolve, 100));
-    
     // Cancel the download
     const cancelled = await downloadManager.cancelDownload(downloadId);
     console.log('❌ Cancellation result:', cancelled);
-    
     // Check status
-    const status = downloadManager.getDownloadStatus(downloadId);
-    console.log('📊 Download status after cancellation:', status);
-    
-    if (status?.status === 'cancelled') {
+    const statusObj = downloadManager.getDownloadStatus(downloadId);
+    console.log('📊 Download status after cancellation:', statusObj);
+    let status: 'cancelled' | 'completed' | 'failed' = 'failed';
+    if (statusObj?.status === 'cancelled' || statusObj?.status === 'completed') {
+      status = statusObj.status;
+    }
+    if (status === 'cancelled') {
       console.log('✅ Download cancellation successful');
     } else {
       console.log('❌ Download cancellation failed');
     }
-    
     return { downloadId, cancelled, status };
-    
   } catch (error) {
     console.error('❌ Cancellation test failed:', error);
     throw error;
@@ -122,36 +119,30 @@ export async function testDownloadCancellation() {
 }
 
 // Test error handling
-export async function testErrorHandling() {
+export async function testErrorHandling(): Promise<{ url: string; error: string; success: boolean }[]> {
   console.log('🧪 Testing Error Handling...');
-  
   const invalidUrls = [
     'invalid-url',
     'ftp://example.com/file.mp4',
     'javascript:alert("xss")',
     'file:///etc/passwd'
   ];
-  
-  const results = [];
-  
+  const results: { url: string; error: string; success: boolean }[] = [];
   for (const url of invalidUrls) {
     try {
       const downloadId = await downloadManager.addDownload('Invalid Test', 'movie', url);
-      results.push({ url, downloadId, success: true });
+      results.push({ url, error: '', success: true });
     } catch (error) {
-      results.push({ url, error: error.message, success: false });
+      results.push({ url, error: error instanceof Error ? error.message : String(error), success: false });
     }
   }
-  
   console.log('📊 Error handling results:', results);
-  
   const failedCount = results.filter(r => !r.success).length;
   if (failedCount === invalidUrls.length) {
     console.log('✅ Error handling working correctly');
   } else {
     console.log('❌ Error handling not working properly');
   }
-  
   return results;
 }
 
@@ -187,7 +178,13 @@ export async function runAllTests() {
 
 // Manual test runner (for browser console)
 if (typeof window !== 'undefined') {
-  (window as any).testDownloadManager = {
+  (window as { testDownloadManager?: {
+    testConcurrentDownloads: () => Promise<string[]>;
+    testRaceConditionPrevention: () => Promise<string[]>;
+    testDownloadCancellation: () => Promise<{ downloadId: string; cancelled: boolean; status: 'cancelled' | 'completed' | 'failed' }>;
+    testErrorHandling: () => Promise<{ url: string; error: string; success: boolean }[]>;
+    runAllTests: () => Promise<void>;
+  } }).testDownloadManager = {
     testConcurrentDownloads,
     testRaceConditionPrevention,
     testDownloadCancellation,
