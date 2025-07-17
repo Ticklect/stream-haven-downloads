@@ -17,6 +17,8 @@ interface Content {
   isEditorPick?: boolean;
 }
 
+export type { Content };
+
 interface ContentSectionProps {
   title: string;
   content: Content[];
@@ -158,7 +160,7 @@ export const ContentSection = ({
           onClose={() => setSelectedContent(null)}
           title={selectedContent.title}
           url={selectedContent.downloadUrl || ''}
-          downloadUrl={selectedContent.downloadUrl}
+          downloadUrl={selectedContent.downloadUrl || ''}
           onDownload={onDownload}
         />
       )}

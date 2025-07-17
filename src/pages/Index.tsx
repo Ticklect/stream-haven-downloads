@@ -2,12 +2,27 @@
 import { Header } from "@/components/Header";
 import { HeroSection } from "@/components/HeroSection";
 import { ContentSection } from "@/components/ContentSection";
+import type { Content } from "@/components/ContentSection";
 import { EmptyState } from "@/components/EmptyState";
 import { DownloadStatus } from "@/components/DownloadStatus";
 import { ErrorHandler } from "@/components/ErrorHandler";
 import { useToast } from "@/hooks/use-toast";
 import { useSourceContent } from "@/hooks/useSourceContent";
 import { useDownloadManager } from "@/hooks/useDownloadManager";
+
+// Replace all 'any' with a specific ContentItem type
+interface ContentItem {
+  id: string;
+  title: string;
+  description: string;
+  image: string;
+  videoUrl: string;
+  type: string;
+  source: string;
+  year?: number;
+  isLatest?: boolean;
+  isEditorPick?: boolean;
+}
 
 const Index = () => {
   const { toast } = useToast();
@@ -58,13 +73,13 @@ const Index = () => {
   };
 
   // Add type guard for ContentItem
-  function isLatest(item: any): boolean {
+  function isLatest(item: ContentItem): boolean {
     return !!item.isLatest;
   }
-  function isEditorPick(item: any): boolean {
+  function isEditorPick(item: ContentItem): boolean {
     return !!item.isEditorPick;
   }
-  function hasYear(item: any): boolean {
+  function hasYear(item: ContentItem): boolean {
     return typeof item.year === 'number';
   }
 
@@ -108,7 +123,13 @@ const Index = () => {
 
   // Fix ContentSection content prop:
   // Ensure all items have a year property
-  const ensureYear = (item: any) => ({ ...item, year: item.year ?? 0 });
+  // If Content expects id: number, convert id to number
+  // Ensure all required Content properties are present
+  const ensureYear = (item: ContentItem): Content => ({
+    ...item,
+    year: typeof item.year === 'number' ? item.year : 0,
+    id: Number(item.id)
+  });
 
   return (
     <div className="min-h-screen bg-black text-white">
