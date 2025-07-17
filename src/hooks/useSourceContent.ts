@@ -71,31 +71,21 @@ export const useSourceContent = () => {
 
   // Load sources from storage
   const loadSources = useCallback(async () => {
-    try {
-      const stored = await get(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setSources(parsed);
-          return;
-        }
+    const stored = await get(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setSources(parsed);
+        return;
       }
-      setSources([]);
-    } catch (error) {
-      console.error('Failed to load sources:', error);
-      setSources([]);
     }
+    setSources([]);
   }, []);
 
   // Save sources to storage
   const saveSources = useCallback(async (newSources: Source[]) => {
-    try {
-      await set(STORAGE_KEY, JSON.stringify(newSources));
-      setSources(newSources);
-    } catch (error) {
-      console.error('Failed to save sources:', error);
-      throw error;
-    }
+    await set(STORAGE_KEY, JSON.stringify(newSources));
+    setSources(newSources);
   }, []);
 
   // Add a new source
