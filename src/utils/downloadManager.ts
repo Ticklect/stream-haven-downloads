@@ -31,10 +31,20 @@ class DownloadManager {
 
   // Mutex-like lock for critical sections
   private processingLock = false;
+  private memoryUsageLimit = 1024 * 1024 * 100; // 100MB
+  private cleanupInterval = 1000 * 60 * 5; // 5 minutes
+  private circuitBreakerOpen = false;
+  private circuitBreakerTimeout = 1000 * 60; // 1 minute
+  private failureThreshold = 5;
+  private failureCount = 0;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  private memoryMonitorTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    // Clean up stale downloads on initialization
     this.cleanupStaleDownloads();
+    this.setupAutoCleanup();
+    this.setupMemoryMonitoring();
+    this.setupCircuitBreaker();
   }
 
   /**
@@ -69,6 +79,49 @@ class DownloadManager {
     return downloadId;
   }
 
+  private setupAutoCleanup() {
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer);
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupStaleDownloads();
+    }, this.cleanupInterval);
+  }
+
+  private setupMemoryMonitoring() {
+    if (this.memoryMonitorTimer) clearInterval(this.memoryMonitorTimer);
+    this.memoryMonitorTimer = setInterval(() => {
+      const used = this.estimateMemoryUsage();
+      if (used > this.memoryUsageLimit) {
+        console.warn('[DownloadManager] Memory usage exceeded limit, clearing completed downloads');
+        this.clearCompletedDownloads();
+      }
+    }, 1000 * 60); // Check every minute
+  }
+
+  private estimateMemoryUsage(): number {
+    // Simple estimation: count active downloads * average size (simulate)
+    return this.activeDownloads.size * 1024 * 1024 * 2; // Assume 2MB per download (adjust as needed)
+  }
+
+  private setupCircuitBreaker() {
+    // Reset circuit breaker after timeout
+    setInterval(() => {
+      if (this.circuitBreakerOpen) {
+        this.circuitBreakerOpen = false;
+        this.failureCount = 0;
+        console.log('[DownloadManager] Circuit breaker reset');
+      }
+    }, this.circuitBreakerTimeout);
+  }
+
+  private openCircuitBreaker() {
+    this.circuitBreakerOpen = true;
+    setTimeout(() => {
+      this.circuitBreakerOpen = false;
+      this.failureCount = 0;
+      console.log('[DownloadManager] Circuit breaker auto-reset');
+    }, this.circuitBreakerTimeout);
+  }
+
   /**
    * Thread-safe method to process the download queue
    */
@@ -76,6 +129,10 @@ class DownloadManager {
     // Use mutex-like behavior to prevent concurrent processing
     if (this.processingLock) {
       console.log('[DownloadManager] Queue processing already in progress, skipping');
+      return;
+    }
+    if (this.circuitBreakerOpen) {
+      console.warn('[DownloadManager] Circuit breaker is open, skipping queue processing');
       return;
     }
 
@@ -89,6 +146,10 @@ class DownloadManager {
           this.processDownload(request).catch(error => {
             console.error(`[DownloadManager] Error processing download ${request.id}:`, error);
             this.updateDownloadState(request.id, 'failed', undefined, error.message);
+            this.failureCount++;
+            if (this.failureCount >= this.failureThreshold) {
+              this.openCircuitBreaker();
+            }
           });
           
           // Rate limiting between downloads
@@ -363,10 +424,10 @@ class DownloadManager {
     this.updateDownloadState(downloadId, 'pending', 0, undefined);
     this.downloadQueue.push({
       id: downloadId,
-      title: (original as any).title || 'Unknown',
-      type: (original as any).type || 'unknown',
-      url: (original as any).url || '',
-      filename: (original as any).filename || 'download',
+      title: typeof (original as unknown as Record<string, unknown>).title === 'string' ? (original as unknown as Record<string, unknown>).title as string : 'Unknown',
+      type: typeof (original as unknown as Record<string, unknown>).type === 'string' ? (original as unknown as Record<string, unknown>).type as string : 'unknown',
+      url: typeof (original as unknown as Record<string, unknown>).url === 'string' ? (original as unknown as Record<string, unknown>).url as string : '',
+      filename: typeof (original as unknown as Record<string, unknown>).filename === 'string' ? (original as unknown as Record<string, unknown>).filename as string : 'download',
       timestamp: Date.now()
     });
     this.processQueue();

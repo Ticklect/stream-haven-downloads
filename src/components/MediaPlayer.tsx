@@ -287,6 +287,21 @@ export const MediaPlayer = ({
     };
   }, [url, videoUrl, loadVideoSource, currentSourceIndex]);
 
+  useEffect(() => {
+    // Cleanup function to pause and reset video
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = '';
+        videoRef.current.load();
+      }
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, []);
+
   const togglePlay = async () => {
     const video = videoRef.current;
     if (!video || error) return;
