@@ -1,10 +1,11 @@
 import { createRoot } from 'react-dom/client';
-import App from './src/App.tsx';
-import './src/index.css';
-import { ErrorBoundary } from './src/components/ErrorBoundary';
-import { ErrorReportingService } from './src/services/errorReporting';
-import React, { createContext, useContext } from 'react';
+import App from './App.tsx';
+import './index.css';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { ErrorReportingService } from './services/errorReporting';
+import React, { createContext } from 'react';
 import * as Sentry from '@sentry/react';
+
 // Remove BrowserTracing import and integration for now if not compatible
 Sentry.init({
   dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0',

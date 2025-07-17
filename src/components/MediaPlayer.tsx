@@ -176,7 +176,7 @@ export const MediaPlayer = ({
         loadVideoSource(sourceIndex + 1);
       }, RETRY_DELAY_MS);
     }
-  }, [videoUrl, getVideoSources, setLoadTimeoutHandler, clearLoadTimeout]);
+  }, [getVideoSources, setLoadTimeoutHandler, clearLoadTimeout]);
 
   // Handle retry with exponential backoff
   const handleRetry = useCallback(() => {
@@ -283,16 +283,23 @@ export const MediaPlayer = ({
   }, [url, videoUrl, loadVideoSource, currentSourceIndex]);
 
   useEffect(() => {
+    // Store current refs to avoid stale closure issues
+    const currentVideoRef = videoRef;
+    const currentHlsRef = hlsRef;
+    
     // Cleanup function to pause and reset video
     return () => {
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.src = '';
-        videoRef.current.load();
+      const videoElement = currentVideoRef.current;
+      const hlsInstance = currentHlsRef.current;
+      
+      if (videoElement) {
+        videoElement.pause();
+        videoElement.src = '';
+        videoElement.load();
       }
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        // Note: hlsRef.current will be cleaned up when component unmounts
       }
     };
   }, []);
