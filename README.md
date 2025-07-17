@@ -30,3 +30,37 @@ npm run dev
 4. Manage sources in Settings
 
 Built with React, Electron, and TypeScript for a secure desktop media experience.
+
+# Launching the Desktop App
+
+## Which app.exe should I use?
+
+- **Production/Release:**
+  - Use `src-tauri/target/release/app.exe` for daily use and distribution.
+  - This version is optimized, secure, and intended for end users.
+
+- **Development/Debug:**
+  - Use `src-tauri/target/debug/app.exe` only for development and testing.
+  - This version is larger, slower, and includes extra debug features.
+
+## How to Launch
+
+- Double-click `src-tauri/target/release/app.exe` to launch the app.
+- (Optional) Create a desktop shortcut to this file for even easier access:
+  1. Right-click `app.exe` in the `release` folder.
+  2. Select "Send to > Desktop (create shortcut)".
+
+## Automating Build & Launch
+
+- To build the release version, run:
+  ```sh
+  npm run tauri build
+  ```
+- To run the debug version, run:
+  ```sh
+  npm run tauri dev
+  ```
+
+---
+
+For more details, see the Tauri documentation or contact the project maintainer.
