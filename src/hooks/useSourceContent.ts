@@ -34,19 +34,15 @@ const BACKEND_URL = '/api';
 
 // Real backend API calls
 const fetchContentFromBackend = async (url: string): Promise<ContentItem[]> => {
-  try {
-    const sanitizedUrl = DOMPurify.sanitize(url);
-    if (!validator.isURL(sanitizedUrl, { require_protocol: true })) {
-      throw new Error('Invalid URL');
-    }
-    const response = await pRetry(() => axios.post(`${BACKEND_URL}/crawl`, { url: sanitizedUrl }), { retries: 3 });
-    if (!Array.isArray(response.data)) {
-      throw new Error('Invalid response format from backend');
-    }
-    return response.data;
-  } catch (error) {
-    throw error;
+  const sanitizedUrl = DOMPurify.sanitize(url);
+  if (!validator.isURL(sanitizedUrl, { require_protocol: true })) {
+    throw new Error('Invalid URL');
   }
+  const response = await pRetry(() => axios.post(`${BACKEND_URL}/crawl`, { url: sanitizedUrl }), { retries: 3 });
+  if (!Array.isArray(response.data)) {
+    throw new Error('Invalid response format from backend');
+  }
+  return response.data;
 };
 
 // Check if backend is available
@@ -90,25 +86,21 @@ export const useSourceContent = () => {
 
   // Add a new source
   const addSource = useCallback(async (name: string, url: string) => {
-    try {
-      const sanitizedUrl = DOMPurify.sanitize(url);
-      if (!validator.isURL(sanitizedUrl, { require_protocol: true })) {
-        throw new Error('Invalid URL');
-      }
-      const newSource: Source = {
-        id: Date.now().toString(),
-        name: name.trim(),
-        url: sanitizedUrl,
-        enabled: true,
-        errorCount: 0,
-      };
-      const updatedSources = [...sources, newSource];
-      await saveSources(updatedSources);
-      queryClient.invalidateQueries({ queryKey: ['sourceContent'] });
-      return newSource;
-    } catch (error) {
-      throw error;
+    const sanitizedUrl = DOMPurify.sanitize(url);
+    if (!validator.isURL(sanitizedUrl, { require_protocol: true })) {
+      throw new Error('Invalid URL');
     }
+    const newSource: Source = {
+      id: Date.now().toString(),
+      name: name.trim(),
+      url: sanitizedUrl,
+      enabled: true,
+      errorCount: 0,
+    };
+    const updatedSources = [...sources, newSource];
+    await saveSources(updatedSources);
+    queryClient.invalidateQueries({ queryKey: ['sourceContent'] });
+    return newSource;
   }, [sources, saveSources, queryClient]);
 
   // Remove a source
