@@ -24,7 +24,7 @@ class NetworkRecoveryManager {
     backoffMultiplier: 2
   };
 
-  private errorHistory: Map<string, NetworkError[]> = new Map();
+  private errorHistory: Record<string, NetworkError[]> = new Map();
   private activeRetries: Set<string> = new Set();
 
   /**
@@ -152,24 +152,27 @@ class NetworkRecoveryManager {
     };
   }
 
-  private classifyFetchError(error: any): NetworkError {
+  private classifyFetchError(error: unknown): NetworkError {
     let type: NetworkError['type'] = 'unknown';
-    let message = error.message || 'Unknown fetch error';
-    
-    if (error.name === 'AbortError') {
-      type = 'timeout';
-      message = 'Request timeout';
-    } else if (error.message?.includes('CORS')) {
-      type = 'cors';
-      message = 'CORS policy violation';
-    } else if (error.message?.includes('Failed to fetch')) {
-      type = 'connection';
-      message = 'Network connection failed';
-    } else if (error.message?.includes('ERR_NETWORK')) {
-      type = 'connection';
-      message = 'Network error';
+    let message = '';
+    if (error instanceof Error) {
+      message = error.message || 'Unknown fetch error';
+      if ((error as { name?: string }).name === 'AbortError') {
+        type = 'timeout';
+        message = 'Request timeout';
+      } else if (message.includes('CORS')) {
+        type = 'cors';
+        message = 'CORS policy violation';
+      } else if (message.includes('Failed to fetch')) {
+        type = 'connection';
+        message = 'Network connection failed';
+      } else if (message.includes('ERR_NETWORK')) {
+        type = 'connection';
+        message = 'Network error';
+      }
+    } else {
+      message = 'Unknown fetch error';
     }
-    
     return {
       type,
       message,
@@ -178,23 +181,23 @@ class NetworkRecoveryManager {
   }
 
   private recordError(retryKey: string, error: NetworkError) {
-    if (!this.errorHistory.has(retryKey)) {
-      this.errorHistory.set(retryKey, []);
+    if (!this.errorHistory[retryKey]) {
+      this.errorHistory[retryKey] = [];
     }
     
-    const history = this.errorHistory.get(retryKey)!;
+    const history = this.errorHistory[retryKey];
     history.push({ ...error, retryCount: history.length });
   }
 
   private recordSuccess(retryKey: string) {
-    this.errorHistory.delete(retryKey);
+    delete this.errorHistory[retryKey];
   }
 
   /**
    * Get error statistics for a URL
    */
   getErrorStats(url: string): NetworkError[] {
-    return this.errorHistory.get(url) || [];
+    return this.errorHistory[url] || [];
   }
 
   /**
@@ -204,7 +207,7 @@ class NetworkRecoveryManager {
     const errors = this.getErrorStats(url);
     const now = Date.now();
     return errors.some(error => 
-      (now - (error as any).timestamp) < timeWindow
+      typeof (error as { timestamp?: number }).timestamp === 'number' && (now - (error as { timestamp: number }).timestamp) < timeWindow
     );
   }
 
@@ -212,7 +215,7 @@ class NetworkRecoveryManager {
    * Clear error history for a URL
    */
   clearErrorHistory(url: string) {
-    this.errorHistory.delete(url);
+    delete this.errorHistory[url];
   }
 
   /**

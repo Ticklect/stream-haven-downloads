@@ -4,6 +4,14 @@ import './index.css'
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ErrorReportingService } from './services/errorReporting';
 import React, { createContext, useContext } from 'react';
+import * as Sentry from '@sentry/react';
+import { BrowserTracing } from '@sentry/tracing';
+
+Sentry.init({
+  dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0', // Replace with your real DSN
+  integrations: [new BrowserTracing()],
+  tracesSampleRate: 1.0,
+});
 
 // Minimal ErrorReportingProvider implementation
 const ErrorReportingContext = createContext(ErrorReportingService.getInstance());

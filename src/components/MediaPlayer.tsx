@@ -6,6 +6,7 @@ import { Play, Pause, Volume2, VolumeX, Maximize, Download, X, AlertTriangle, Re
 import { ErrorHandler } from "@/components/ErrorHandler";
 import { useToast } from "@/hooks/use-toast";
 import Hls from 'hls.js';
+import videojs from 'video.js';
 
 interface MediaPlayerProps {
   isOpen: boolean;

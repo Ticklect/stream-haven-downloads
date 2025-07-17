@@ -2,6 +2,7 @@
 // Implements mutex-like behavior using async/await patterns
 import { validateDownloadUrl, createSecureFilename } from './security';
 import { networkRecovery } from './networkRecovery';
+import PQueue from 'p-queue';
 
 interface DownloadRequest {
   id: string;
@@ -39,6 +40,7 @@ class DownloadManager {
   private failureCount = 0;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
   private memoryMonitorTimer: ReturnType<typeof setInterval> | null = null;
+  private queue = new PQueue({ concurrency: this.maxConcurrentDownloads });
 
   constructor() {
     this.cleanupStaleDownloads();
@@ -74,7 +76,7 @@ class DownloadManager {
     console.log(`[DownloadManager] Added download to queue: ${downloadId} - ${title}`);
     
     // Start processing if not already running
-    this.processQueue();
+    this.queue.add(() => this.processDownload(request));
     
     return downloadId;
   }
