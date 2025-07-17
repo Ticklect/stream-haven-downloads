@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+// Removed Progress import - using native HTML progress element
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Download, 
@@ -145,10 +145,12 @@ export const DownloadStatus: React.FC = () => {
                       <X className="h-3 w-3" />
                     </Button>
                   </div>
-                  <Progress 
-                    value={download.progress || 0} 
-                    className="h-2"
-                  />
+                  <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                      style={{ width: `${download.progress || 0}%` }}
+                    ></div>
+                  </div>
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span>{download.progress || 0}%</span>
                     <span>{formatDuration(download.startTime)}</span>
