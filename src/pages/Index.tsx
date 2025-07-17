@@ -20,11 +20,7 @@ const Index = () => {
     console.log('Download requested for:', title, 'URL:', downloadUrl);
     
     if (!downloadUrl) {
-      toast({
-        title: "Download Unavailable",
-        description: "No download link available for this content",
-        variant: "destructive"
-      });
+      toast('Download Unavailable: No download link available for this content');
       return;
     }
 
@@ -61,9 +57,20 @@ const Index = () => {
     }
   };
 
+  // Add type guard for ContentItem
+  function isLatest(item: any): boolean {
+    return !!item.isLatest;
+  }
+  function isEditorPick(item: any): boolean {
+    return !!item.isEditorPick;
+  }
+  function hasYear(item: any): boolean {
+    return typeof item.year === 'number';
+  }
+
   // Filter content by type
-  const latestReleases = content.filter(item => item.isLatest).slice(0, 4);
-  const editorPicks = content.filter(item => item.isEditorPick).slice(0, 4);
+  const latestReleases = content.filter(isLatest).slice(0, 4);
+  const editorPicks = content.filter(isEditorPick).slice(0, 4);
   const movies = content.filter(item => item.type === "movie");
   const tvShows = content.filter(item => item.type === "tv");
 
@@ -112,7 +119,7 @@ const Index = () => {
             {latestReleases.length > 0 && (
               <ContentSection
                 title="Latest Releases"
-                content={latestReleases}
+                content={latestReleases.map(item => hasYear(item) ? item : { ...item, year: 0 })}
                 onDownload={handleDownload}
                 isLoading={isLoading}
               />

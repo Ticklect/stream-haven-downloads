@@ -2,11 +2,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Play, Pause, Volume2, VolumeX, Maximize, Download, X, AlertTriangle, RefreshCw, Settings } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, Download, X } from "lucide-react";
 import { ErrorHandler } from "@/components/ErrorHandler";
 import { useToast } from "@/hooks/use-toast";
 import Hls from 'hls.js';
-import videojs from 'video.js';
 
 interface MediaPlayerProps {
   isOpen: boolean;
@@ -28,14 +27,12 @@ export const MediaPlayer = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
-  const [isRetrying, setIsRetrying] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
   
@@ -102,7 +99,6 @@ export const MediaPlayer = ({
     if (sourceIndex >= sources.length) {
       setError("All video sources failed to load. Please try again later.");
       setIsLoading(false);
-      setIsRetrying(false);
       setRetryCount(0);
       clearLoadTimeout();
       return;
@@ -186,12 +182,10 @@ export const MediaPlayer = ({
   const handleRetry = useCallback(() => {
     if (retryCount >= MAX_RETRY_ATTEMPTS) {
       setError('Maximum retry attempts reached. Please try again later.');
-      setIsRetrying(false);
       setRetryCount(0);
       return;
     }
 
-    setIsRetrying(true);
     setRetryCount(prev => prev + 1);
     
     // Exponential backoff: 2s, 4s, 8s
@@ -323,11 +317,7 @@ export const MediaPlayer = ({
       }
     } catch (err) {
       console.error('Playback error:', err);
-      toast({
-        title: "Playback Error",
-        description: "Unable to play this media. The source might be unavailable or blocked by CORS.",
-        variant: "destructive"
-      });
+      toast.error("Unable to play this media. The source might be unavailable or blocked by CORS.");
     }
   };
 
@@ -371,11 +361,7 @@ export const MediaPlayer = ({
     if (onDownload && downloadUrl) {
       onDownload(title, "video", downloadUrl);
     } else {
-      toast({
-        title: "Download Unavailable",
-        description: "No download link available for this content",
-        variant: "destructive"
-      });
+      toast.error("No download link available for this content");
     }
   };
 
