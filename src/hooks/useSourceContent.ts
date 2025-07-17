@@ -1,7 +1,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { validateUrl } from '../utils/security';
+import axios from 'axios';
+import pRetry from 'p-retry';
+import validator from 'validator';
+import DOMPurify from 'dompurify';
+import ky from 'ky';
+import pTimeout from 'p-timeout';
+import Fuse from 'fuse.js';
 import { get, set, remove } from '../utils/storage';
 
 export interface Source {
@@ -29,31 +35,16 @@ const BACKEND_URL = '/api';
 // Real backend API calls
 const fetchContentFromBackend = async (url: string): Promise<ContentItem[]> => {
   try {
-    console.log('Fetching content from real backend:', url);
-    
-    const response = await fetch(`${BACKEND_URL}/crawl`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    const sanitizedUrl = DOMPurify.sanitize(url);
+    if (!validator.isURL(sanitizedUrl, { require_protocol: true })) {
+      throw new Error('Invalid URL');
     }
-
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) {
+    const response = await pRetry(() => axios.post(`${BACKEND_URL}/crawl`, { url: sanitizedUrl }), { retries: 3 });
+    if (!Array.isArray(response.data)) {
       throw new Error('Invalid response format from backend');
     }
-
-    console.log(`Backend returned ${data.length} content items`);
-    return data;
+    return response.data;
   } catch (error) {
-    console.error('Backend fetch error:', error);
     throw error;
   }
 };
@@ -61,13 +52,13 @@ const fetchContentFromBackend = async (url: string): Promise<ContentItem[]> => {
 // Check if backend is available
 const checkBackendHealth = async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${BACKEND_URL}/health`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    return response.ok;
+    // Use native Promise.race for timeout
+    await Promise.race([
+      ky.get(`${BACKEND_URL}/health`, { timeout: 3000 }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Backend health check timed out')), 4000))
+    ]);
+    return true;
   } catch (error) {
-    console.warn('Backend health check failed:', error);
     return false;
   }
 };
@@ -110,29 +101,22 @@ export const useSourceContent = () => {
   // Add a new source
   const addSource = useCallback(async (name: string, url: string) => {
     try {
-      // Validate input
-      const urlValidation = validateUrl(url);
-      if (!urlValidation.isValid) {
-        throw new Error(urlValidation.error || 'Invalid URL');
+      const sanitizedUrl = DOMPurify.sanitize(url);
+      if (!validator.isURL(sanitizedUrl, { require_protocol: true })) {
+        throw new Error('Invalid URL');
       }
-
       const newSource: Source = {
         id: Date.now().toString(),
         name: name.trim(),
-        url: urlValidation.sanitizedUrl || url,
+        url: sanitizedUrl,
         enabled: true,
         errorCount: 0,
       };
-
       const updatedSources = [...sources, newSource];
       await saveSources(updatedSources);
-      
-      // Invalidate content queries to refresh
       queryClient.invalidateQueries({ queryKey: ['sourceContent'] });
-      
       return newSource;
     } catch (error) {
-      console.error('Failed to add source:', error);
       throw error;
     }
   }, [sources, saveSources, queryClient]);
@@ -193,7 +177,7 @@ export const useSourceContent = () => {
         try {
           console.log(`Processing source: ${source.name} (${source.url})`);
           
-          const content = await fetchContentFromBackend(source.url);
+          const content = await pRetry(() => fetchContentFromBackend(source.url), { retries: 2 });
           
           if (content && content.length > 0) {
             allContent.push(...content);
@@ -258,6 +242,10 @@ export const useSourceContent = () => {
     loadSources();
   }, [loadSources]);
 
+  // Add fuzzy search for sources
+  const fuse = new Fuse(sources, { keys: ['name', 'url'] });
+  const searchSources = (query: string) => fuse.search(query).map(result => result.item);
+
   return {
     sources,
     content: contentQuery.data || [],
@@ -268,6 +256,7 @@ export const useSourceContent = () => {
     toggleSource,
     refreshContent: () => contentQuery.refetch(),
     backendAvailable: checkBackendHealth,
+    searchSources,
   };
 };
 
