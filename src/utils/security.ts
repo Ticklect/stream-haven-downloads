@@ -293,3 +293,26 @@ export const createSecureFilename = (title: string, url?: string, type?: string)
   
   return `${cleanTitle}.${extension}`;
 };
+
+// Custom SecurityError
+export class SecurityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SecurityError';
+  }
+}
+
+// Security middleware for content validation
+export const validateContent = {
+  url: (url: string) => {
+    const urlPattern = /^https:\/\/[^\s/$.?#].[^\s]*$/i;
+    if (!urlPattern.test(url)) throw new SecurityError('Invalid URL format');
+    // Additional security checks can be added here
+  },
+  fileType: (filename: string) => {
+    const allowedTypes = ['.mp4', '.mp3', '.m3u8'];
+    if (!allowedTypes.some(ext => filename.endsWith(ext))) {
+      throw new SecurityError('Unsupported file type');
+    }
+  }
+};
