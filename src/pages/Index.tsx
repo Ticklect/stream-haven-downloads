@@ -4,6 +4,7 @@ import { HeroSection } from "@/components/HeroSection";
 import { ContentSection } from "@/components/ContentSection";
 import { EmptyState } from "@/components/EmptyState";
 import { DownloadStatus } from "@/components/DownloadStatus";
+import { ErrorHandler } from "@/components/ErrorHandler";
 import { useToast } from "@/hooks/use-toast";
 import { useSourceContent } from "@/hooks/useSourceContent";
 import { useDownloadManager } from "@/hooks/useDownloadManager";
@@ -81,8 +82,12 @@ const Index = () => {
         <HeroSection />
         <main className="pb-16">
           <div className="container mx-auto px-4 py-16 text-center">
-            <div className="text-red-500 text-lg mb-4">Error Loading Content</div>
-            <div className="text-gray-400">{error}</div>
+            <ErrorHandler
+              error={error}
+              errorType="source"
+              onRetry={() => window.location.reload()}
+              showRecoveryOptions={true}
+            />
           </div>
         </main>
       </div>

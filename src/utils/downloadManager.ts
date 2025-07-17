@@ -127,8 +127,9 @@ class DownloadManager {
       console.log(`[DownloadManager] Download completed: ${request.id}`);
       
     } catch (error) {
-      console.error(`[DownloadManager] Download failed: ${request.id}`, error);
-      this.updateDownloadState(request.id, 'failed', undefined, error.message);
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error(`[DownloadManager] Download failed: ${request.id}`, err);
+      this.updateDownloadState(request.id, 'failed', 0, err.message);
     }
   }
 
@@ -289,19 +290,14 @@ class DownloadManager {
    * Update download state atomically
    */
   private updateDownloadState(id: string, status: DownloadState['status'], progress?: number, error?: string): void {
-    const currentState = this.activeDownloads.get(id);
-    if (currentState) {
-      const updatedState: DownloadState = {
-        ...currentState,
-        status,
-        progress,
-        error,
-        startTime: status === 'downloading' ? Date.now() : currentState.startTime,
-        endTime: ['completed', 'failed', 'cancelled'].includes(status) ? Date.now() : currentState.endTime
-      };
-      
-      this.activeDownloads.set(id, updatedState);
-      console.log(`[DownloadManager] Download ${id} status updated to: ${status}`);
+    const state = this.activeDownloads.get(id);
+    if (state) {
+      state.status = status;
+      state.progress = progress !== undefined ? progress : 0;
+      if (error) state.error = error;
+      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+        state.endTime = Date.now();
+      }
     }
   }
 
@@ -347,9 +343,38 @@ class DownloadManager {
       }
     }
   }
+
+  /**
+   * Retry a failed download by re-queuing it
+   */
+  async retryDownload(downloadId: string): Promise<boolean> {
+    const state = this.getDownloadStatus(downloadId);
+    if (!state || state.status !== 'failed') {
+      console.warn(`[DownloadManager] Cannot retry download: ${downloadId} is not failed or does not exist`);
+      return false;
+    }
+    // Find the original request (from activeDownloads or reconstruct)
+    const original = Array.from(this.activeDownloads.values()).find(d => d.id === downloadId);
+    if (!original) {
+      console.warn(`[DownloadManager] Cannot retry download: original request not found`);
+      return false;
+    }
+    // Reset state and re-queue
+    this.updateDownloadState(downloadId, 'pending', 0, undefined);
+    this.downloadQueue.push({
+      id: downloadId,
+      title: (original as any).title || 'Unknown',
+      type: (original as any).type || 'unknown',
+      url: (original as any).url || '',
+      filename: (original as any).filename || 'download',
+      timestamp: Date.now()
+    });
+    this.processQueue();
+    return true;
+  }
 }
 
-// Export singleton instance
+// Export an instance
 export const downloadManager = new DownloadManager();
 
 // Export types for external use

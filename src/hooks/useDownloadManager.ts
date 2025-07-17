@@ -6,6 +6,7 @@ interface UseDownloadManagerReturn {
   // Download actions
   startDownload: (title: string, type: string, url: string) => Promise<string | null>;
   cancelDownload: (downloadId: string) => Promise<boolean>;
+  retryDownload: (downloadId: string) => Promise<boolean>;
   
   // State
   downloads: DownloadState[];
@@ -102,6 +103,13 @@ export const useDownloadManager = (): UseDownloadManagerReturn => {
     updateDownloads();
   }, [updateDownloads]);
 
+  // Retry a failed download
+  const retryDownload = useCallback(async (downloadId: string): Promise<boolean> => {
+    const result = await downloadManager.retryDownload(downloadId);
+    updateDownloads();
+    return result;
+  }, [updateDownloads]);
+
   // Computed properties for different download states
   const activeDownloads = downloads.filter(d => d.status === 'downloading');
   const pendingDownloads = downloads.filter(d => d.status === 'pending');
@@ -112,6 +120,7 @@ export const useDownloadManager = (): UseDownloadManagerReturn => {
     // Actions
     startDownload,
     cancelDownload,
+    retryDownload,
     
     // State
     downloads,

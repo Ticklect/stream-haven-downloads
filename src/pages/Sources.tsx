@@ -7,16 +7,70 @@ import { useSourceContent } from "@/hooks/useSourceContent";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { ErrorHandler } from "@/components/ErrorHandler";
+import { useToast } from "@/hooks/use-toast";
 
 const Sources = () => {
   const [showAddForm, setShowAddForm] = useState(false);
-  const { sources, addSource, removeSource, toggleSource } = useSourceContent();
+  const { sources, addSource, removeSource, toggleSource, error } = useSourceContent();
+  const { toast } = useToast();
   const navigate = useNavigate();
 
-  const handleAddSource = (sourceData: { name: string; url: string; isActive: boolean }) => {
-    addSource(sourceData);
-    setShowAddForm(false);
+  const handleAddSource = async (sourceData: { name: string; url: string; isActive: boolean }) => {
+    try {
+      await addSource(sourceData.name, sourceData.url);
+      setShowAddForm(false);
+    } catch (err) {
+      toast({
+        title: "Add Source Failed",
+        description: err instanceof Error ? err.message : "Unable to add source. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
+
+  const handleRemoveSource = async (id: string) => {
+    try {
+      await removeSource(id);
+    } catch (err) {
+      toast({
+        title: "Remove Source Failed",
+        description: err instanceof Error ? err.message : "Unable to remove source. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleToggleSource = async (id: string) => {
+    try {
+      await toggleSource(id);
+    } catch (err) {
+      toast({
+        title: "Toggle Source Failed",
+        description: err instanceof Error ? err.message : "Unable to toggle source. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Show error state if there's an error
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <Header />
+        <main className="pt-24 pb-16">
+          <div className="container mx-auto px-4 py-16 text-center">
+            <ErrorHandler
+              error={error}
+              errorType="source"
+              onRetry={() => window.location.reload()}
+              showRecoveryOptions={true}
+            />
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -52,12 +106,12 @@ const Sources = () => {
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-white mb-4">
-                  Active Sources ({sources.filter(s => s.isActive).length})
+                  Active Sources ({sources.filter(s => s.enabled).length})
                 </h2>
                 <SourceList
                   sources={sources}
-                  onToggle={toggleSource}
-                  onRemove={removeSource}
+                  onToggle={handleToggleSource}
+                  onRemove={handleRemoveSource}
                 />
               </div>
             </div>

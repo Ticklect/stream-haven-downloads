@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useDownloadManager } from '@/hooks/useDownloadManager';
 import { type DownloadState } from '@/utils/downloadManager';
+import { useToast } from "@/hooks/use-toast";
 
 export const DownloadStatus: React.FC = () => {
   const {
@@ -28,8 +29,10 @@ export const DownloadStatus: React.FC = () => {
     activeDownloadCount,
     maxConcurrentDownloads,
     cancelDownload,
-    clearCompletedDownloads
+    clearCompletedDownloads,
+    retryDownload // <-- Add this to the hook if not present
   } = useDownloadManager();
+  const { toast } = useToast();
 
   // Don't render if no downloads
   if (downloads.length === 0) {
@@ -238,6 +241,24 @@ export const DownloadStatus: React.FC = () => {
                   {download.error && (
                     <div className="text-xs text-red-600 mt-1 truncate">
                       {download.error}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-2"
+                        onClick={() => {
+                          if (retryDownload) {
+                            retryDownload(download.id);
+                          } else {
+                            toast({
+                              title: "Retry Not Available",
+                              description: "Retry function is not implemented.",
+                              variant: "destructive"
+                            });
+                          }
+                        }}
+                      >
+                        Retry
+                      </Button>
                     </div>
                   )}
                 </div>
