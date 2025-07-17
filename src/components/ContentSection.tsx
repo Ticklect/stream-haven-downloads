@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Download, Info } from "lucide-react";
-import { MediaPlayer } from "./MediaPlayer";
+
+// Lazy load MediaPlayer to reduce initial bundle size
+const MediaPlayer = lazy(() => import("./MediaPlayer").then(module => ({ default: module.MediaPlayer })));
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Content {
@@ -153,16 +155,20 @@ export const ContentSection = ({
         )}
       </div>
 
-      {/* Media Player */}
+      {/* Media Player - Lazy Loaded */}
       {selectedContent && (
-        <MediaPlayer
-          isOpen={!!selectedContent}
-          onClose={() => setSelectedContent(null)}
-          title={selectedContent.title}
-          url={selectedContent.downloadUrl || ''}
-          downloadUrl={selectedContent.downloadUrl || ''}
-          onDownload={onDownload}
-        />
+        <Suspense fallback={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-4 rounded-lg">Loading player...</div>
+        </div>}>
+          <MediaPlayer
+            isOpen={!!selectedContent}
+            onClose={() => setSelectedContent(null)}
+            title={selectedContent.title}
+            url={selectedContent.downloadUrl || ''}
+            downloadUrl={selectedContent.downloadUrl || ''}
+            onDownload={onDownload}
+          />
+        </Suspense>
       )}
     </section>
   );
