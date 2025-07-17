@@ -57,7 +57,7 @@ export const validateUrl = (url: string): { isValid: boolean; sanitizedUrl?: str
     const trimmedUrl = url.trim();
     
     if (trimmedUrl.length > MAX_URL_LENGTH) {
-      return { isValid: false, error: 'URL too long' };
+      return { isValid: false, error: 'URL is too long' };
     }
 
     const parsedUrl = new URL(trimmedUrl);
@@ -69,7 +69,7 @@ export const validateUrl = (url: string): { isValid: boolean; sanitizedUrl?: str
     // Check for blocked hostnames (localhost, internal networks)
     const hostname = parsedUrl.hostname.toLowerCase();
     if (BLOCKED_HOSTNAMES.some(blocked => hostname === blocked || hostname.startsWith(blocked))) {
-      return { isValid: false, error: 'Access to localhost and internal networks is not allowed' };
+      return { isValid: false, error: 'Blocked or unsafe hostname' };
     }
 
     // Check for suspicious patterns (more permissive)

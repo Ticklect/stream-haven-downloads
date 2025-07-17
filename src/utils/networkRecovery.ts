@@ -33,7 +33,8 @@ class NetworkRecoveryManager {
   async fetchWithRetry(
     url: string, 
     options: RequestInit = {}, 
-    customRetryConfig?: Partial<RetryConfig>
+    customRetryConfig?: Partial<RetryConfig>,
+    onError?: (error: NetworkError) => void
   ): Promise<Response> {
     const config = { ...this.retryConfig, ...customRetryConfig };
     const retryKey = `${url}-${JSON.stringify(options)}`;
@@ -45,7 +46,7 @@ class NetworkRecoveryManager {
     this.activeRetries.add(retryKey);
     
     try {
-      return await this.attemptFetch(url, options, config, retryKey);
+      return await this.attemptFetch(url, options, config, retryKey, 0, onError);
     } finally {
       this.activeRetries.delete(retryKey);
     }
@@ -56,7 +57,8 @@ class NetworkRecoveryManager {
     options: RequestInit, 
     config: RetryConfig, 
     retryKey: string,
-    attempt: number = 0
+    attempt: number = 0,
+    onError?: (error: NetworkError) => void
   ): Promise<Response> {
     try {
       console.log(`Network request attempt ${attempt + 1}/${config.maxRetries + 1}:`, url);
@@ -79,9 +81,10 @@ class NetworkRecoveryManager {
       // Handle different HTTP error codes
       const error = this.classifyHttpError(response.status, response.statusText);
       this.recordError(retryKey, error);
+      if (onError) onError(error);
       
       if (this.shouldRetry(error, attempt, config)) {
-        return await this.retryWithBackoff(url, options, config, retryKey, attempt, error);
+        return await this.retryWithBackoff(url, options, config, retryKey, attempt, error, onError);
       }
       
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -89,9 +92,10 @@ class NetworkRecoveryManager {
     } catch (fetchError) {
       const error = this.classifyFetchError(fetchError);
       this.recordError(retryKey, error);
+      if (onError) onError(error);
       
       if (this.shouldRetry(error, attempt, config)) {
-        return await this.retryWithBackoff(url, options, config, retryKey, attempt, error);
+        return await this.retryWithBackoff(url, options, config, retryKey, attempt, error, onError);
       }
       
       throw fetchError;
@@ -99,23 +103,21 @@ class NetworkRecoveryManager {
   }
 
   private async retryWithBackoff(
-    url: string,
-    options: RequestInit,
-    config: RetryConfig,
-    retryKey: string,
-    attempt: number,
-    error: NetworkError
+    url: string, 
+    options: RequestInit, 
+    config: RetryConfig, 
+    retryKey: string, 
+    attempt: number, 
+    error: NetworkError,
+    onError?: (error: NetworkError) => void
   ): Promise<Response> {
     const delay = Math.min(
       config.baseDelay * Math.pow(config.backoffMultiplier, attempt),
       config.maxDelay
     );
-    
-    console.log(`Retrying in ${delay}ms due to ${error.type} error:`, error.message);
-    
-    await this.delay(delay);
-    
-    return this.attemptFetch(url, options, config, retryKey, attempt + 1);
+    console.warn(`Retrying network request in ${delay}ms...`);
+    await new Promise(res => setTimeout(res, delay));
+    return this.attemptFetch(url, options, config, retryKey, attempt + 1, onError);
   }
 
   private shouldRetry(error: NetworkError, attempt: number, config: RetryConfig): boolean {

@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Play, Pause, Volume2, VolumeX, Maximize, Download, X, AlertTriangle, RefreshCw, Settings } from "lucide-react";
+import { ErrorHandler } from "@/components/ErrorHandler";
 import { useToast } from "@/hooks/use-toast";
 import Hls from 'hls.js';
 
@@ -415,34 +416,13 @@ export const MediaPlayer = ({
           {error && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/80">
               <div className="text-center text-white p-6 max-w-md">
-                <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                <div className="text-lg font-semibold mb-2">Media Unavailable</div>
-                <div className="text-sm opacity-80 mb-4">{error}</div>
-                <div className="text-xs opacity-60 mb-4">
-                  This could be due to CORS restrictions, network issues, or the media source being unavailable.
-                  The system is trying alternative sources automatically.
-                </div>
-                <div className="flex gap-2 justify-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => loadVideoSource(0)}
-                    disabled={isRetrying}
-                    className="text-white border-white hover:bg-white hover:text-black"
-                  >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isRetrying ? 'animate-spin' : ''}`} />
-                    {isRetrying ? 'Retrying...' : 'Retry'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => loadVideoSource(currentSourceIndex + 1)}
-                    className="text-white border-white hover:bg-white hover:text-black"
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Next Source
-                  </Button>
-                </div>
+                <ErrorHandler
+                  error={error}
+                  errorType="media"
+                  onRetry={() => loadVideoSource(0)}
+                  onAlternativeAction={() => loadVideoSource(currentSourceIndex + 1)}
+                  showRecoveryOptions={true}
+                />
               </div>
             </div>
           )}
