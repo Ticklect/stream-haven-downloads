@@ -101,6 +101,15 @@ const Index = () => {
     );
   }
 
+  // Fix all toast usages:
+  // toast('Download Unavailable: No download link available for this content');
+  // toast('Download Queued: ...');
+  // toast.error('Download Failed: ...');
+
+  // Fix ContentSection content prop:
+  // Ensure all items have a year property
+  const ensureYear = (item: any) => ({ ...item, year: item.year ?? 0 });
+
   return (
     <div className="min-h-screen bg-black text-white">
       <Header />
@@ -119,7 +128,7 @@ const Index = () => {
             {latestReleases.length > 0 && (
               <ContentSection
                 title="Latest Releases"
-                content={latestReleases.map(item => hasYear(item) ? item : { ...item, year: 0 })}
+                content={latestReleases.map(ensureYear)}
                 onDownload={handleDownload}
                 isLoading={isLoading}
               />
@@ -128,7 +137,7 @@ const Index = () => {
             {editorPicks.length > 0 && (
               <ContentSection
                 title="Editor Picks"
-                content={editorPicks}
+                content={editorPicks.map(ensureYear)}
                 onDownload={handleDownload}
                 isLoading={isLoading}
               />
@@ -137,7 +146,7 @@ const Index = () => {
             {movies.length > 0 && (
               <ContentSection
                 title="Movies"
-                content={movies}
+                content={movies.map(ensureYear)}
                 onDownload={handleDownload}
                 showViewAll
                 isLoading={isLoading}
@@ -147,7 +156,7 @@ const Index = () => {
             {tvShows.length > 0 && (
               <ContentSection
                 title="TV Shows"
-                content={tvShows}
+                content={tvShows.map(ensureYear)}
                 onDownload={handleDownload}
                 showViewAll
                 isLoading={isLoading}

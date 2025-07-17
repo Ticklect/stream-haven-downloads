@@ -24,7 +24,7 @@ class NetworkRecoveryManager {
     backoffMultiplier: 2
   };
 
-  private errorHistory: Record<string, NetworkError[]> = {};
+  private errorHistory: Record<string, (NetworkError & { timestamp?: number })[]> = {};
   private activeRetries: Set<string> = new Set();
 
   /**
@@ -185,8 +185,9 @@ class NetworkRecoveryManager {
       this.errorHistory[retryKey] = [];
     }
     
+    const errorWithTimestamp = { ...error, timestamp: Date.now() };
     const history = this.errorHistory[retryKey];
-    history.push({ ...error, retryCount: history.length });
+    history.push(errorWithTimestamp);
   }
 
   private recordSuccess(retryKey: string) {
@@ -206,10 +207,7 @@ class NetworkRecoveryManager {
   hasRecentErrors(url: string, timeWindow: number = 60000): boolean {
     const errors = this.getErrorStats(url);
     const now = Date.now();
-    return errors.some(error => {
-      const e = error as unknown as { timestamp?: number };
-      return typeof e.timestamp === 'number' && (now - e.timestamp) < timeWindow;
-    });
+    return errors.some(error => typeof error.timestamp === 'number' && (now - error.timestamp!) < timeWindow);
   }
 
   /**

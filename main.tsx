@@ -5,11 +5,9 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ErrorReportingService } from './src/services/errorReporting';
 import React, { createContext, useContext } from 'react';
 import * as Sentry from '@sentry/react';
-import { BrowserTracing } from '@sentry/tracing';
-
+// Remove BrowserTracing import and integration for now if not compatible
 Sentry.init({
-  dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0', // Replace with your real DSN
-  integrations: [new BrowserTracing()],
+  dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0',
   tracesSampleRate: 1.0,
 });
 
